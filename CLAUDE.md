@@ -336,10 +336,8 @@ as the upstream Servarr guide says, fails on PostgreSQL 15+.
 sabnzbd has no database; plex, emby and pinchflat have no upstream Postgres support.
 mealie, paperless and grafana all support it and are still on SQLite.
 
-actual-budget is a permanent exception rather than a pending migration: its sync
-protocol treats each budget as a SQLite file that the server stores whole and
-ships to clients as a blob, so SQLite is the data model and not a swappable
-backend. Do not open this question again.
+actual-budget is permanent, not pending: its sync protocol makes each budget a
+SQLite file the server ships to clients whole, so there is nothing to migrate.
 
 **Backups**: none yet beyond Longhorn snapshots. A logical `pg_dump` CronJob to the `nfs`
 storage class is the outstanding action.

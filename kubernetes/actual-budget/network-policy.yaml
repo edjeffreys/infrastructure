@@ -34,10 +34,9 @@ spec:
             k8s:io.kubernetes.pod.namespace: tailscale
 
 ---
-# The only server-initiated outbound traffic is the bank-sync integrations
-# (GoCardless, SimpleFIN, Pluggy, Akahu, EnableBanking) — budgeting itself is
-# entirely local, and the update check runs in the browser, not here. Drop this
-# policy if none of those are ever configured.
+# Bank sync only (GoCardless, SimpleFIN, Pluggy, Akahu, EnableBanking).
+# Budgeting is local and the update check runs in the browser, so drop this if
+# none of those are configured.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:

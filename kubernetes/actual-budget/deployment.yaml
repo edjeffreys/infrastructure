@@ -1,12 +1,7 @@
 ---
-# Actual's sync server. There is no Postgres option: the sync protocol is built
-# around each budget being its own SQLite file, which the server stores whole
-# under /data and ships to clients as a blob. SQLite is the data model here, not
-# a default backend to be swapped out, so no CNPG Cluster accompanies this app
-# (see kubernetes/arr/postgres/ for what that would have looked like).
-#
-# That leaves the whole dataset on one ReadWriteOnce Longhorn volume, so:
-# replicas 1 and strategy Recreate.
+# No CNPG cluster because there is no Postgres option: Actual's sync protocol
+# makes each budget its own SQLite file, stored whole and shipped to clients as
+# a blob. SQLite is the data model, not a swappable backend.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -27,10 +22,8 @@ spec:
       nodeSelector:
         node-type: standard
       securityContext:
-        # The image creates the "actual" user (uid/gid 1001) but never switches
-        # to it, so without this the server runs as root. Everything it writes
-        # lives under /data — config.json is only ever read — so running as 1001
-        # with a matching fsGroup on the volume is enough.
+        # The image creates this user but never switches to it, so without this
+        # the server runs as root. Everything it writes is under /data.
         runAsUser: 1001
         runAsGroup: 1001
         fsGroup: 1001
@@ -42,9 +35,8 @@ spec:
           env:
             - name: TZ
               value: Europe/London
-            # Defaulted by the image only because /data happens to exist in it;
-            # stated here so a base-image change cannot silently relocate the
-            # budget files to the (ephemeral) app directory.
+            # The image's default only holds because /data exists in it. Pinned
+            # so a base image change cannot relocate the budget files.
             - name: ACTUAL_DATA_DIR
               value: /data
           readinessProbe:
