@@ -29,14 +29,9 @@ containerMode:
 
 template:
   spec:
-    # Required by the longhorn work volume above, and only by it. Longhorn
-    # provisions a fresh ext4 filesystem owned by root, whereas the runner
-    # process is uid 1001 — so it cannot create /home/runner/_work/_tool and
-    # the worker dies with UnauthorizedAccessException about a second in. That
-    # is *before* the first step, so GitHub shows the job as failed with no
-    # steps and no logs, which reads like a runner registration fault rather
-    # than a filesystem one. fsGroup makes the kubelet chown the volume on
-    # mount. The old nfs class never needed it: the TrueNAS export squashed
+    # The longhorn work volume arrives owned by root and the runner is uid
+    # 1001, so without this it cannot write _work and dies before the first
+    # step — no steps, no logs. nfs never needed it; the export squashed
     # ownership server-side.
     securityContext:
       fsGroup: 1001
@@ -65,16 +60,10 @@ template:
         image: ghcr.io/actions/actions-runner:2.337.0
         command: ["/home/runner/run.sh"]
         env:
-          # containerMode.type: kubernetes makes the chart default this to
-          # "true", which forbids any job that does not declare a `container:`
-          # — the job fails at "Set up job" with "Jobs without a job container
-          # are forbidden on this runner". Only build-claude-agent.yaml has
-          # one; validate-manifests.yaml and talos-upgrade.yaml run their steps
-          # directly on the runner, as they did before Kubernetes mode existed.
-          #
-          # Setting it here is what keeps both styles working: the chart only
-          # injects its own "true" when this name is absent from the env list,
-          # so declaring it suppresses that rather than colliding with it.
+          # Kubernetes mode otherwise makes `container:` mandatory for every
+          # job, and only build-claude-agent.yaml has one. The chart injects its
+          # own "true" only when this name is absent, so this overrides rather
+          # than duplicates.
           - name: ACTIONS_RUNNER_REQUIRE_JOB_CONTAINER
             value: "false"
           - name: TF_TOKEN_app_terraform_io
