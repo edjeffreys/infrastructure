@@ -131,12 +131,7 @@
       "versioning": "semver"
     },
     {
-      "description": "claude-agent is built from images/claude-agent/Dockerfile by our own workflow and always pushed as :latest, so there is no upstream version to track. It also must not be caught by the pinDigests rule below: digest updates are disabled repo-wide, so a pinned digest would freeze the agent at whatever it was first pinned to.",
-      "matchPackageNames": ["ghcr.io/edjeffreys/claude-agent"],
-      "enabled": false
-    },
-    {
-      "description": "claude-agent is built by hand from images/claude-agent/Dockerfile and pushed as :latest, so there is no upstream version for Renovate to track here. It also must not be caught by the pinDigests rule below: digest updates are disabled repo-wide, so a pinned digest would freeze the agent at whatever it was first pinned to. The Dockerfile's own ARG pins are still managed.",
+      "description": "claude-agent is built from images/claude-agent/Dockerfile by build-claude-agent.yaml and pushed as :latest (plus :sha-<short-sha>), so there is no upstream version for Renovate to track here. It also must not be caught by the pinDigests rule below: digest updates are disabled repo-wide, so a pinned digest would freeze the agent at whatever it was first pinned to. The Dockerfile's own ARG pins are still managed.",
       "matchPackageNames": ["ghcr.io/edjeffreys/claude-agent"],
       "enabled": false
     },

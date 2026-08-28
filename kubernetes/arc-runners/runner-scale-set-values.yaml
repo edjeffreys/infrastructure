@@ -13,6 +13,28 @@ controllerServiceAccount:
 minRunners: 0
 maxRunners: 4
 
+# Lets a workflow step declare `container:` and have ARC run it as its own
+# pod via the Kubernetes API, instead of needing a Docker daemon in the
+# runner pod. This is how kubernetes/claude-agent's image gets built in CI
+# (.github/workflows/build-claude-agent.yaml, Kaniko) without the privileged
+# dind sidecar + `pod-security enforce: privileged` that building images here
+# was previously judged not worth — see the "Build and push the image"
+# section of kubernetes/claude-agent/README.md. Workflows that never set
+# `container:` (talos-upgrade, validate-manifests) are unaffected.
+#
+# kubernetesModeWorkVolumeClaim is the workspace PVC shared between the
+# runner pod and whatever job-container pod it spins up. `nfs` (ReadWriteMany)
+# rather than `longhorn`, deliberately: RWO would tie the two pods to the same
+# node, and this avoids relying on that.
+containerMode:
+  type: "kubernetes"
+  kubernetesModeWorkVolumeClaim:
+    accessModes: ["ReadWriteMany"]
+    storageClassName: "nfs"
+    resources:
+      requests:
+        storage: 5Gi
+
 template:
   spec:
     nodeSelector:
