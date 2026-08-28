@@ -1,5 +1,7 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "semanticCommits is pinned rather than left at its default of `auto`. Auto-detection infers the convention by reading recent commits on the default branch, and this repo was recreated in Aug 2026 from a single squashed commit (the 950-commit history is in edjeffreys/infrastructure-archive). With only `Initial commit` to look at, Renovate concluded the repo does not use conventional commits and silently dropped the `chore(deps):` prefix from every PR title. Stating it explicitly means the convention no longer depends on history that may be squashed again.",
+  "semanticCommits": "enabled",
   "flux": {
     "fileMatch": ["^flux/.+\\.yaml$"]
   },
