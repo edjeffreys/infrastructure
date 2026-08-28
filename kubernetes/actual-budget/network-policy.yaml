@@ -1,0 +1,51 @@
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: actual-budget
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-ingress
+  namespace: actual-budget
+spec:
+  endpointSelector:
+    matchLabels:
+      app: actual-budget
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: tailscale
+
+---
+# Bank sync only (GoCardless, SimpleFIN, Pluggy, Akahu, EnableBanking).
+# Budgeting is local and the update check runs in the browser, so drop this if
+# none of those are configured.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-world-egress
+  namespace: actual-budget
+spec:
+  endpointSelector:
+    matchLabels:
+      app: actual-budget
+  egress:
+    - toEntities:
+        - world
