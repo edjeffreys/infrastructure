@@ -18,11 +18,11 @@ maxRunners: 4
 # in the runner pod.
 containerMode:
   type: "kubernetes"
-  # nfs (ReadWriteMany), not longhorn: RWO would tie the runner pod and the
-  # job-container pod to the same node.
+  # longhorn, not nfs: ARC's Kubernetes-mode hook pins the job-container pod
+  # to the runner pod's node, so ReadWriteOnce is safe.
   kubernetesModeWorkVolumeClaim:
-    accessModes: ["ReadWriteMany"]
-    storageClassName: "nfs"
+    accessModes: ["ReadWriteOnce"]
+    storageClassName: "longhorn"
     resources:
       requests:
         storage: 5Gi
