@@ -143,6 +143,20 @@ private, and it must stay private (it carries credentials in its history).
 Reach for it when you need to know *why* something is the way it is; this repo
 cannot answer that question any more.
 
+### Comment conventions
+
+Comments explain **why**, not what — a hidden constraint, a non-obvious
+consequence, a workaround, something that would surprise the next reader. If
+removing a comment wouldn't confuse someone reading the code, don't write it;
+never restate what a well-named field or the line right above it already
+shows.
+
+This matters more here than in most repos: the squashed history means
+`git log`/`git blame` can't explain a decision (see "Commit and PR
+conventions" above), so comments are one of the few places that can — and a
+comment that just restates its own line is noise crowding out the ones that
+carry real information.
+
 ### Renovate
 
 `renovate.json` at root. The `flux` manager watches `flux/**`, raises PRs for
