@@ -29,6 +29,17 @@ containerMode:
 
 template:
   spec:
+    # Required by the longhorn work volume above, and only by it. Longhorn
+    # provisions a fresh ext4 filesystem owned by root, whereas the runner
+    # process is uid 1001 — so it cannot create /home/runner/_work/_tool and
+    # the worker dies with UnauthorizedAccessException about a second in. That
+    # is *before* the first step, so GitHub shows the job as failed with no
+    # steps and no logs, which reads like a runner registration fault rather
+    # than a filesystem one. fsGroup makes the kubelet chown the volume on
+    # mount. The old nfs class never needed it: the TrueNAS export squashed
+    # ownership server-side.
+    securityContext:
+      fsGroup: 1001
     nodeSelector:
       node-type: standard
     containers:
