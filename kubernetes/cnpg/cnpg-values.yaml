@@ -1,0 +1,24 @@
+# CloudNativePG operator.
+#
+# clusterWide (the chart default) is kept: the operator watches every namespace,
+# so a Cluster can live alongside the workload that uses it rather than in a
+# central database namespace. See kubernetes/arr/postgres/ for the first one.
+nodeSelector:
+  node-type: standard
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    memory: 256Mi
+
+monitoring:
+  # kube-prometheus-stack is configured with podMonitorSelector: {} and
+  # podMonitorNamespaceSelector: {} (kube-prometheus-stack-values.yaml), so this
+  # PodMonitor is discovered with no further wiring.
+  podMonitorEnabled: true
+  grafanaDashboard:
+    create: true
+    # The Grafana sidecar only loads ConfigMaps from its own namespace.
+    namespace: monitoring

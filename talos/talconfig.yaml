@@ -1,0 +1,170 @@
+clusterName: talos
+talosVersion: v1.13.2
+kubernetesVersion: v1.36.1
+endpoint: https://10.0.0.200:6443
+
+clusterPodNets:
+  - 10.52.0.0/16
+clusterSvcNets:
+  - 10.53.0.0/16
+
+cniConfig:
+  name: none  # Cilium installed separately
+
+# The API server cert is otherwise issued with certSANs: [], so it carries only
+# the node hostname + node/VIP IPs -- no DNS name for the tailnet. Clients
+# reaching the API over Tailscale then have to pin `tls-server-name: talos-cp-0`
+# in their kubeconfig to make verification pass against a SAN that exists.
+# Listing the MagicDNS names here lets an ordinary kubeconfig verify normally.
+additionalApiServerCertSans:
+  - talos-cp-0.tail5f17e.ts.net
+  - talos-cp-1.tail5f17e.ts.net
+  - talos-cp-2.tail5f17e.ts.net
+
+worker:
+  schematic:
+    customization:
+      systemExtensions:
+        officialExtensions:
+          # i915 + intel-ucode drive the Alder Lake iGPU passed through to
+          # talos-worker-0 (see terraform/proxmox/talos.tf hostpci0). Applied to
+          # the whole worker pool rather than just that node so all workers keep
+          # one schematic and one maintenance ISO — the module is inert on nodes
+          # with no DRM device.
+          - siderolabs/i915
+          - siderolabs/intel-ucode
+          - siderolabs/iscsi-tools
+          - siderolabs/util-linux-tools
+          - siderolabs/nfs-utils
+          - siderolabs/qemu-guest-agent
+          - siderolabs/tailscale
+  patches:
+    - |-
+      machine:
+        kernel:
+          modules:
+            - name: iscsi_tcp
+        kubelet:
+          extraMounts:
+            - destination: /var/lib/longhorn
+              type: bind
+              source: /var/lib/longhorn
+              options:
+                - bind
+                - rshared
+                - rw
+
+# Applied to all nodes
+patches:
+  - |-
+    machine:
+      network:
+        nameservers:
+          - 10.0.0.1
+          - 1.1.1.1
+
+  # The tailscale extension is configured by an ExtensionServiceConfig
+  # document, NOT by writing /var/etc/tailscale/tailscaled.env via
+  # machine.files — that was the pre-1.x mechanism and modern Talos ignores
+  # it. Without this document ext-tailscale sits in "Waiting for extension
+  # service config" forever, startAllServices never completes, and every node
+  # stays in the "booting" stage with no node-level Tailscale (which is what
+  # made the cluster unreachable when kubeconfig and talosconfig were lost).
+  - |-
+    apiVersion: v1alpha1
+    kind: ExtensionServiceConfig
+    name: tailscale
+    environment:
+      - TS_AUTHKEY=${TAILSCALE_AUTH_KEY}
+      - TS_EXTRA_ARGS=--advertise-tags=tag:server
+
+controlPlane:
+  schematic:
+    customization:
+      systemExtensions:
+        officialExtensions:
+          - siderolabs/qemu-guest-agent
+          - siderolabs/tailscale
+  patches:
+    - |-
+      machine:
+        network:
+          interfaces:
+            - interface: ens18
+              dhcp: true
+              vip:
+                ip: 10.0.0.200
+      cluster:
+        extraManifests:
+          - https://raw.githubusercontent.com/edjeffreys/infrastructure/master/talos/manifests/cilium.yaml
+          - https://raw.githubusercontent.com/edjeffreys/infrastructure/master/talos/manifests/csi-driver-nfs.yaml
+          # No GitOps controller is bootstrapped here any more. ArgoCD used to
+          # be — argocd.yaml plus argocd-root-app.yaml — and Flux deliberately
+          # does not take its place: Flux needs its CiliumNetworkPolicy applied
+          # before it can reach GitHub (the clusterwide default-deny would
+          # otherwise stop it fetching the very policy that permits the fetch),
+          # and it needs a git auth Secret that only exists after `op inject`.
+          # Talos applies extraManifests verbatim and can do neither, so the
+          # install is a documented manual sequence instead — see
+          # kubernetes/flux-system/README.md.
+          - https://raw.githubusercontent.com/edjeffreys/infrastructure/master/talos/manifests/node-taint-rbac.yaml
+        extraManifestHeaders:
+          Authorization: "Bearer ${GITHUB_TOKEN}"
+
+nodes:
+  - hostname: talos-cp-0
+    ipAddress: 10.0.0.10
+    installDisk: /dev/vda
+    controlPlane: true
+
+  - hostname: talos-cp-1
+    ipAddress: 10.0.0.11
+    installDisk: /dev/vda
+    controlPlane: true
+
+  - hostname: talos-cp-2
+    ipAddress: 10.0.0.12
+    installDisk: /dev/vda
+    controlPlane: true
+
+  - hostname: talos-worker-0
+    ipAddress: 10.11.0.10
+    installDisk: /dev/vda
+    controlPlane: false
+    nodeLabels:
+      node-type: standard
+      # Only VM holding the passed-through Intel iGPU. Selected by the
+      # intel-gpu device plugin DaemonSet and by plex.
+      gpu: intel
+
+  - hostname: talos-worker-1
+    ipAddress: 10.11.0.11
+    installDisk: /dev/vda
+    controlPlane: false
+    nodeLabels:
+      node-type: standard
+
+  - hostname: talos-worker-2
+    ipAddress: 10.11.0.12
+    installDisk: /dev/vda
+    controlPlane: false
+    nodeLabels:
+      node-type: standard
+
+  - hostname: talos-worker-pia-0
+    ipAddress: 10.200.0.10
+    installDisk: /dev/vda
+    controlPlane: false
+    nodeLabels:
+      node-type: pia
+    nodeTaints:
+      node-type: "pia:NoExecute"
+
+  - hostname: talos-worker-pia-1
+    ipAddress: 10.200.0.11
+    installDisk: /dev/vda
+    controlPlane: false
+    nodeLabels:
+      node-type: pia
+    nodeTaints:
+      node-type: "pia:NoExecute"

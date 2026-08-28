@@ -1,0 +1,38 @@
+args:
+  # Talos kubelets present self-signed serving certificates: talconfig.yaml does
+  # not set rotate-server-certificates, and Kubernetes will not auto-approve
+  # kubelet serving CSRs without a cert approver. metrics-server would refuse to
+  # scrape them, so verification is skipped. Traffic is still TLS and stays
+  # inside the cluster network.
+  #
+  # The stricter alternative is rotate-server-certificates plus a serving-cert
+  # approver, which needs a config apply across all nodes — worth folding into
+  # the pending rolling reboot, after which this flag can be dropped.
+  #
+  # Note: do NOT add --kubelet-preferred-address-types here. The chart's
+  # defaultArgs already sets it to InternalIP,ExternalIP,Hostname (InternalIP
+  # first, which is what Talos wants) and args are appended to defaultArgs, so
+  # setting it again would pass the same flag twice.
+  - --kubelet-insecure-tls
+
+# Runs in kube-system deliberately: that namespace is excluded from the
+# default-deny CiliumClusterwideNetworkPolicy, so metrics-server needs no
+# network policy of its own to reach kubelets on port 10250 across every node,
+# including the tainted PIA nodes.
+nodeSelector:
+  node-type: standard
+
+resources:
+  requests:
+    cpu: 20m
+    memory: 64Mi
+  limits:
+    memory: 192Mi
+
+metrics:
+  enabled: true
+
+serviceMonitor:
+  enabled: true
+  additionalLabels:
+    release: kube-prometheus-stack

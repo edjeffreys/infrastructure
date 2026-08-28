@@ -1,0 +1,14 @@
+# Apply with: helm upgrade --install onepassword-operator 1password/connect -n onepassword-operator -f operator-values.yaml
+connect:
+  create: true
+  credentialsName: op-credentials
+  credentialsKey: 1password-credentials.json
+
+operator:
+  create: true
+  authMethod: connect
+  token:
+    name: onepassword-connect-token
+    key: token
+  autoRestart: true
+  pollingInterval: 600

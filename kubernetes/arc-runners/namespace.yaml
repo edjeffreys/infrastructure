@@ -1,0 +1,5 @@
+# New in the Flux migration — see kubernetes/arc-systems/namespace.yaml for why.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: arc-runners

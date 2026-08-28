@@ -1,0 +1,98 @@
+rule_files:
+  - flux-monitoring.rules.yaml
+evaluation_interval: 1m
+
+tests:
+  # 1. Flux not installed at all: no `up` in flux-system, no gotk_ series.
+  #    Nothing may fire — this is the state the cluster is in today.
+  - interval: 1m
+    name: flux not installed
+    input_series:
+      - series: 'up{namespace="monitoring", pod="prometheus-0"}'
+        values: '1x30'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: FluxControllersAbsent
+        exp_alerts: []
+      - eval_time: 30m
+        alertname: FluxControllerDown
+        exp_alerts: []
+      - eval_time: 30m
+        alertname: FluxResourceNotReady
+        exp_alerts: []
+
+  # 2. Flux healthy: controllers up, resources Ready. Silence.
+  - interval: 1m
+    name: flux healthy
+    input_series:
+      - series: 'up{namespace="flux-system", pod="source-controller-abc"}'
+        values: '1x30'
+      - series: 'gotk_resource_info{customresource_kind="Kustomization", exported_namespace="flux-system", name="tdarr", ready="True", suspended="false", revision="sha1:aaa"}'
+        values: '1x30'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: FluxControllersAbsent
+        exp_alerts: []
+      - eval_time: 30m
+        alertname: FluxResourceNotReady
+        exp_alerts: []
+
+  # 3. Controllers deleted but the CRs remain — the case `up == 0` cannot see,
+  #    because the series stop existing rather than going to zero.
+  - interval: 1m
+    name: controllers gone, resources remain
+    input_series:
+      - series: 'gotk_resource_info{customresource_kind="Kustomization", exported_namespace="flux-system", name="tdarr", ready="True", suspended="false"}'
+        values: '1x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: FluxControllersAbsent
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              namespace: flux-system
+            exp_annotations:
+              summary: "No Flux controllers are running, but Flux resources still exist."
+              description: "The whole flux-system namespace has stopped reporting. Nothing in the cluster is reconciling from git."
+
+  # 4. A Kustomization stuck not-Ready, with the `revision` label churning on
+  #    every push. The alert must still age past `for: 15m` — aggregating the
+  #    revision label away is what makes that true.
+  - interval: 1m
+    name: not ready across a changing revision
+    input_series:
+      - series: 'up{namespace="flux-system", pod="kustomize-controller-abc"}'
+        values: '1x40'
+      - series: 'gotk_resource_info{customresource_kind="HelmRelease", exported_namespace="plex", name="plex", ready="False", suspended="false", revision="sha1:aaa"}'
+        values: '1x12 _x28'
+      - series: 'gotk_resource_info{customresource_kind="HelmRelease", exported_namespace="plex", name="plex", ready="False", suspended="false", revision="sha1:bbb"}'
+        values: '_x12 1x28'
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: FluxResourceNotReady
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              customresource_kind: HelmRelease
+              exported_namespace: plex
+              name: plex
+            exp_annotations:
+              summary: "Flux HelmRelease plex/plex has not reconciled for 15 minutes."
+              description: "Run `flux get all -A` and check the resource's status conditions. Under ArgoCD this would have shown as Degraded in the UI."
+
+  # 5. A controller scraped but failing.
+  - interval: 1m
+    name: controller down
+    input_series:
+      - series: 'up{namespace="flux-system", pod="helm-controller-abc"}'
+        values: '0x30'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: FluxControllerDown
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              pod: helm-controller-abc
+            exp_annotations:
+              summary: "Flux controller helm-controller-abc is down."
+              description: "Nothing this controller owns is reconciling. Check `kubectl -n flux-system get pods`."

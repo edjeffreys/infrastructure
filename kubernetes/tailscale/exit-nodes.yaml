@@ -1,0 +1,22 @@
+---
+# Exit node on standard nodes (home/DMZ traffic)
+apiVersion: tailscale.com/v1alpha1
+kind: Connector
+metadata:
+  name: vpn-home
+  namespace: tailscale
+spec:
+  hostname: vpn-home
+  exitNode: true
+  proxyClass: standard
+---
+# Exit node on PIA nodes (PIA VPN traffic)
+apiVersion: tailscale.com/v1alpha1
+kind: Connector
+metadata:
+  name: vpn-pia
+  namespace: tailscale
+spec:
+  hostname: vpn-pia
+  exitNode: true
+  proxyClass: pia-exit

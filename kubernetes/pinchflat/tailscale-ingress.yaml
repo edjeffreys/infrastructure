@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: pinchflat-tailscale
+  namespace: pinchflat
+  annotations:
+    tailscale.com/hostname: "pinchflat"
+    tailscale.com/proxy-class: "standard"
+spec:
+  ingressClassName: tailscale
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: pinchflat
+                port:
+                  number: 8945
+  tls:
+    - hosts:
+        - pinchflat

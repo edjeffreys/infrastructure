@@ -1,0 +1,132 @@
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: tdarr
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+
+---
+# Server and node talk both ways: the node dials the server on 8266 to register,
+# and the server dials the node back on 8267 to hand out work. A one-directional
+# policy leaves the node connected but permanently idle, which looks like a
+# Tdarr configuration problem rather than a network one.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-intra-namespace
+  namespace: tdarr
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEndpoints:
+        - {}
+  egress:
+    - toEndpoints:
+        - {}
+
+---
+# Web UI via Tailscale. Needs the matching entry in
+# kubernetes/tailscale/network-policy.yaml allow-backend-egress.
+#
+# BOTH ports, not just the UI on 8265: the browser loads the page from 8265 and
+# then calls the server API on 8266 directly, so allowing only 8265 renders a
+# UI in which nothing works. Same reason the Service uses tailscale.com/expose
+# instead of an Ingress.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: tdarr-server-ingress
+  namespace: tdarr
+spec:
+  endpointSelector:
+    matchLabels:
+      app: tdarr-server
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: tailscale
+      toPorts:
+        - ports:
+            - port: "8265"
+            # 8266 stays open from the tailscale namespace even though the
+            # Ingress only routes 8265. Costs nothing, and means re-trying the
+            # tailscale.com/expose approach doesn't also require a policy edit
+            # to work — that combination is easy to misdiagnose as an app fault.
+            - port: "8266"
+
+---
+# Egress half of the Sonarr/Radarr integration; the matching ingress rules live
+# in kubernetes/arr/network-policy.yaml (tdarr-ingress, tdarr-radarr-ingress).
+# Both halves are required — Cilium enforces egress at the source endpoint and
+# ingress at the destination independently, so one without the other fails
+# silently as a connection timeout in the Tdarr plugin log.
+#
+# Applies to server and node alike: flow plugins run on the node, the server
+# does its own post-processing, and which one calls out depends on the flow.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-arr-egress
+  namespace: tdarr
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: arr
+            k8s:app: sonarr
+      toPorts:
+        - ports:
+            - port: "8989"
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: arr
+            k8s:app: radarr
+      toPorts:
+        - ports:
+            - port: "7878"
+    # Plex needs telling too, and for a different reason than the arr apps.
+    # Tdarr rewrites in place, so the path is unchanged while the content is
+    # entirely new. Plex keeps its cached media analysis and will happily offer
+    # a client direct play of an H264 stream that is now HEVC — a playback
+    # failure rather than a graceful fallback. Its automatic detection can't
+    # catch this: it depends on filesystem events that don't cross NFS.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: plex
+            k8s:app: plex
+      toPorts:
+        - ports:
+            - port: "32400"
+
+---
+# The server fetches the plugin catalogue and plugin updates from GitHub, and
+# checks for new releases. The node deliberately gets no world egress: its
+# plugins and job assignments are pushed by the server over the intra-namespace
+# link, and ffmpeg/HandBrake are baked into the image. If node logs ever show
+# failed downloads, widen this rather than guessing at Tdarr settings.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: tdarr-server-egress
+  namespace: tdarr
+spec:
+  endpointSelector:
+    matchLabels:
+      app: tdarr-server
+  egress:
+    - toEntities:
+        - world

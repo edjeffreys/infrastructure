@@ -1,0 +1,25 @@
+---
+# The plugin registers with kubelet over a unix socket in
+# /var/lib/kubelet/device-plugins and reads sysfs — it needs no apiserver
+# access and no cluster networking at all. This policy exists only so the
+# endpoint is explicitly governed rather than sitting silently under the
+# clusterwide default-deny, and to keep DNS working for anything the container
+# resolves at startup.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: intel-gpu
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP

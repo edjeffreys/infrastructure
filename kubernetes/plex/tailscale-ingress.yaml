@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: plex-tailscale
+  namespace: plex
+  annotations:
+    tailscale.com/hostname: "plex"
+    tailscale.com/proxy-class: "standard"
+spec:
+  ingressClassName: tailscale
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: plex
+                port:
+                  number: 32400
+  tls:
+    - hosts:
+        - plex

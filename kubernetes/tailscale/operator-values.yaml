@@ -1,0 +1,6 @@
+# Credentials are not set here - the chart automatically reads the
+# pre-existing 'operator-oauth' Secret (created by the 1Password operator).
+apiServerProxyConfig:
+  mode: noauth
+proxyConfig:
+  defaultTags: "tag:k8s"

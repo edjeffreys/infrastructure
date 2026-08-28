@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tdarr-node-cpu
+  namespace: tdarr
+spec:
+  replicas: 1
+  strategy:
+    # RWO longhorn config PVC. No GPU here, so unlike tdarr-node this could
+    # roll — but Recreate keeps the two nodes behaving identically.
+    type: Recreate
+  selector:
+    matchLabels:
+      app: tdarr-node-cpu
+  template:
+    metadata:
+      labels:
+        app: tdarr-node-cpu
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  # Standard pool, but explicitly NOT the GPU node. Landing on
+                  # talos-worker-0 would put CPU transcodes on the same 4 cores
+                  # already shared by plex and the QuickSync node — the exact
+                  # contention this second node exists to avoid.
+                  - key: node-type
+                    operator: In
+                    values: ["standard"]
+                  - key: gpu
+                    operator: DoesNotExist
+      containers:
+        - name: tdarr-node
+          image: ghcr.io/haveagitgat/tdarr_node:2.86.01@sha256:7542459ac5ed5cd299600530e9625b9d590629d5dc391c0016773f5d6aa3fe75
+          env:
+            - name: PUID
+              value: "3000"
+            - name: PGID
+              value: "3000"
+            - name: TZ
+              value: "Etc/UTC"
+            - name: nodeName
+              value: "cpu-only"
+            - name: serverIP
+              value: "tdarr-server"
+            - name: serverPort
+              value: "8266"
+            - name: nodePort
+              value: "8267"
+            - name: inContainer
+              value: "true"
+            - name: ffmpegVersion
+              value: "7"
+            # Deliberately no LIBVA_DRIVER_NAME and no gpu.intel.com/i915 —
+            # there is no /dev/dri on this node. See the warning below about
+            # flows that hard-code a QSV encoder.
+          ports:
+            - name: node
+              containerPort: 8267
+          resources:
+            requests:
+              memory: 1Gi
+              cpu: 500m
+            limits:
+              memory: 4Gi
+              # Workers here are 8-core. Capped at 4 so a runaway libx265 job
+              # can't monopolise a node that also runs the standard workload.
+              cpu: 4000m
+          volumeMounts:
+            - name: config
+              mountPath: /app/configs
+            - name: config
+              subPath: logs
+              mountPath: /app/logs
+            - name: media
+              mountPath: /data
+            - name: cache
+              mountPath: /temp
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: tdarr-node-cpu-config
+        - name: media
+          persistentVolumeClaim:
+            claimName: tdarr-media
+        - name: cache
+          persistentVolumeClaim:
+            claimName: tdarr-cache

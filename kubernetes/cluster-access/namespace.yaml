@@ -1,0 +1,9 @@
+# Holds no pods — only a ServiceAccount, its long-lived token Secret and a
+# ClusterRoleBinding. That is why there is no network-policy.yaml here, unlike
+# every other namespace in this repo: the clusterwide `default-deny` restricts
+# endpoints, and a namespace with no endpoints has nothing to restrict.
+# scripts/check-policy-coverage.py agrees — it reports on pods, and finds none.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cluster-access

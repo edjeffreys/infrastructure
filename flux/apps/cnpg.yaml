@@ -1,0 +1,47 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: cloudnative-pg
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: https://cloudnative-pg.github.io/charts
+
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: cnpg
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./kubernetes/cnpg
+  prune: true
+  wait: true
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: infrastructure
+
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: cnpg
+  namespace: cnpg-system
+spec:
+  interval: 30m
+  # Matches the live release: the Deployment is `cnpg-cloudnative-pg`, i.e.
+  # release `cnpg` + chart `cloudnative-pg`.
+  releaseName: cnpg
+  chart:
+    spec:
+      chart: cloudnative-pg
+      version: "0.29.0"
+      sourceRef:
+        kind: HelmRepository
+        name: cloudnative-pg
+        namespace: flux-system
+  valuesFrom:
+    - kind: ConfigMap
+      name: cnpg-values

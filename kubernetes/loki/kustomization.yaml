@@ -1,0 +1,33 @@
+# Explicit resources list, not autodetect: loki-values.yaml and
+# promtail-values.yaml are Helm values with no apiVersion/kind, and autodetect
+# would fail the whole build on them with "missing Resource metadata". This is
+# the Flux equivalent of ArgoCD's `directory.exclude: "*-values.yaml"`.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: loki
+resources:
+  - namespace.yaml
+  - network-policy.yaml
+
+configMapGenerator:
+  # Replaces ArgoCD's `$values/` git ref, which has no Flux equivalent. Both
+  # values files stay exactly where they were — Renovate's regexManager and
+  # kubeconform's ignore pattern both key off the `-values.yaml` suffix. loki
+  # and promtail were two ArgoCD Applications sharing this one directory; Flux
+  # keeps them as two HelmReleases under the single `loki` Kustomization
+  # instead, since two Kustomizations both applying ./kubernetes/loki would
+  # collide on namespace.yaml and network-policy.yaml.
+  - name: loki-values
+    files:
+      - values.yaml=loki-values.yaml
+    options:
+      disableNameSuffixHash: true
+      labels:
+        reconcile.fluxcd.io/watch: Enabled
+  - name: promtail-values
+    files:
+      - values.yaml=promtail-values.yaml
+    options:
+      disableNameSuffixHash: true
+      labels:
+        reconcile.fluxcd.io/watch: Enabled

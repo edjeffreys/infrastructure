@@ -1,0 +1,27 @@
+# Explicit resources list, not autodetect: cnpg-values.yaml is Helm values with
+# no apiVersion/kind, and autodetect would fail the whole build on it with
+# "missing Resource metadata". This is the Flux equivalent of ArgoCD's
+# `directory.exclude: "*-values.yaml"`.
+#
+# The ArgoCD Application also set `ServerSideApply=true`, because the CNPG CRDs
+# exceed the 256KB annotation limit client-side apply needs for
+# last-applied-configuration. That option has no Flux equivalent and needs none:
+# Flux always applies server-side.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: cnpg-system
+resources:
+  - namespace.yaml
+  - network-policy.yaml
+
+configMapGenerator:
+  # Replaces ArgoCD's `$values/` git ref, which has no Flux equivalent. The
+  # values file itself stays exactly where it was — Renovate's regexManager and
+  # kubeconform's ignore pattern both key off the `-values.yaml` suffix.
+  - name: cnpg-values
+    files:
+      - values.yaml=cnpg-values.yaml
+    options:
+      disableNameSuffixHash: true
+      labels:
+        reconcile.fluxcd.io/watch: Enabled

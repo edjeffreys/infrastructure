@@ -1,0 +1,50 @@
+---
+# Daily filesystem trim.
+#
+# Longhorn volumes are thin-provisioned: blocks freed inside the guest
+# filesystem are not returned to the underlying disk until the volume is
+# trimmed. High-churn volumes therefore grow without bound against their real
+# usage — the Prometheus TSDB reached 22.2GB actual against an 8GB retention
+# budget and tripped LonghornVolumeActualSpaceUsedWarning at 103% of nominal
+# capacity. A manual trim reclaimed 16.2GB. Without this job it simply
+# regrows.
+#
+# This ran weekly until 2026-08-27, and weekly was not enough. Prometheus was
+# rescheduled onto talos-worker-2 on 2026-08-24 and rewrote its whole TSDB; by
+# the time the space alert re-fired three days later the volume was back to
+# 20.12GB actual against 8.01GB of real filesystem usage — ~12GB of dead blocks
+# accumulated between two runs. The trim is cheap and idempotent on a volume
+# with nothing to reclaim, so running it daily costs close to nothing, while
+# missing a week costs 12GB on the single physical disk.
+#
+# Renaming the job (not just editing the cron) is deliberate: Longhorn names the
+# generated CronJob after spec.name, so a rename without a delete would leave
+# two CronJobs trimming the same volumes. ArgoCD has prune: true on this app, so
+# it removes the old RecurringJob and Longhorn garbage-collects its CronJob.
+#
+# RecurringJob has no timeZone field (unlike batch/v1 CronJob) — cron is
+# evaluated in the longhorn-manager's timezone, which is UTC. 04:00 UTC is
+# 04:00 GMT in winter and 05:00 BST in summer, so it stays clear of the
+# 02:00-03:30 Europe/London media-restart window in both, and clear of any
+# overlap with that job's staggered restarts.
+apiVersion: longhorn.io/v1beta2
+kind: RecurringJob
+metadata:
+  name: filesystem-trim-daily
+  namespace: longhorn-system
+spec:
+  name: filesystem-trim-daily
+  cron: "0 4 * * *"
+  task: filesystem-trim
+  # The "default" group covers every volume not explicitly assigned to another
+  # recurring job group, so new PVCs are picked up without further config.
+  groups:
+    - default
+  # One volume at a time. Every worker VM shares the single Proxmox physical
+  # disk, so trimming volumes in parallel would contend for the same device —
+  # the exact bottleneck this is meant to relieve.
+  concurrency: 1
+  # Snapshot retention count; not meaningful for filesystem-trim, but the
+  # field is required.
+  retain: 0
+  labels: {}

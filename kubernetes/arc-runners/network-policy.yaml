@@ -1,0 +1,52 @@
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: arc-runners
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+
+---
+# Allow runners to reach GitHub, download tooling, and manage the cluster
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-world-egress
+  namespace: arc-runners
+spec:
+  endpointSelector: {}
+  egress:
+    - toEntities:
+        - world
+        - kube-apiserver
+
+---
+# Allow runners to reach Proxmox API and SSH to build VMs
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-proxmox-egress
+  namespace: arc-runners
+spec:
+  endpointSelector: {}
+  egress:
+    - toCIDR:
+        - 10.0.0.0/24
+      toPorts:
+        - ports:
+            - port: "8006"
+              protocol: TCP
+            - port: "22"
+              protocol: TCP

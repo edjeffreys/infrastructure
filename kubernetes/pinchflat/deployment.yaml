@@ -1,0 +1,71 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pinchflat
+  namespace: pinchflat
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: pinchflat
+  template:
+    metadata:
+      labels:
+        app: pinchflat
+    spec:
+      nodeSelector:
+        node-type: pia
+      tolerations:
+        - key: node-type
+          operator: Equal
+          value: pia
+          effect: NoExecute
+      containers:
+        - name: pinchflat
+          image: ghcr.io/kieraneglin/pinchflat:latest@sha256:01b4f98aabaf3f5fe394213f7a32578c9e84e42080f52e2f8334021a4473b202
+          ports:
+            - containerPort: 8945
+          env:
+            - name: TZ
+              value: Europe/London
+          readinessProbe:
+            httpGet:
+              path: /healthcheck
+              port: 8945
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: 4Gi
+              cpu: 500m
+            limits:
+              memory: 4Gi
+              cpu: 3000m
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: media
+              mountPath: /downloads
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: pinchflat-config
+        - name: media
+          persistentVolumeClaim:
+            claimName: pinchflat-media
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pinchflat
+  namespace: pinchflat
+spec:
+  selector:
+    app: pinchflat
+  ports:
+    - port: 8945
+      targetPort: 8945

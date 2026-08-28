@@ -1,0 +1,56 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: prometheus-community
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: https://prometheus-community.github.io/helm-charts
+
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: monitoring
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./kubernetes/monitoring
+  prune: true
+  wait: true
+  # kube-prometheus-stack's CRDs are large; give apply/wait more room than the
+  # usual 5m before this is declared failed.
+  timeout: 10m
+  sourceRef:
+    kind: GitRepository
+    name: infrastructure
+
+---
+# Lives in the monitoring namespace, not flux-system, so that `valuesFrom` can
+# read the ConfigMap the Kustomization above generates from
+# kube-prometheus-stack-values.yaml.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: monitoring
+  namespace: monitoring
+spec:
+  interval: 30m
+  # NOT optional. The ArgoCD Application pinned the same thing: every
+  # ServiceMonitor across the cluster (metrics-server, promtail, and this
+  # chart's own) is labelled `release: kube-prometheus-stack` for Prometheus's
+  # selector to pick it up. Defaulting to the HelmRelease name (`monitoring`)
+  # would both force a recreation (Deployment/StatefulSet selectors are
+  # immutable) and silently break every ServiceMonitor's discovery.
+  releaseName: kube-prometheus-stack
+  chart:
+    spec:
+      chart: kube-prometheus-stack
+      version: "88.5.4"
+      sourceRef:
+        kind: HelmRepository
+        name: prometheus-community
+        namespace: flux-system
+  valuesFrom:
+    - kind: ConfigMap
+      name: kube-prometheus-stack-values

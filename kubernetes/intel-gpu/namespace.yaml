@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: intel-gpu
+  labels:
+    # The plugin hostPath-mounts /dev/dri, /sys/class/drm and the kubelet
+    # device-plugin socket dir. hostPath volumes are forbidden at PSA baseline,
+    # which is what Talos enforces by default, so this namespace has to be
+    # privileged — same reason as tailscale/longhorn-system/monitoring/loki.
+    pod-security.kubernetes.io/enforce: privileged

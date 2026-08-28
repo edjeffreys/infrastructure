@@ -1,0 +1,19 @@
+# The authorisation half of the second-device credential, and the half that
+# makes revocation work from git: delete this file and Flux prunes the binding,
+# after which the token still exists but can do nothing. That is the fast path —
+# deleting the token Secret as well kills the credential outright.
+#
+# A ServiceAccount rather than a Talos x509 admin cert, because a cert cannot be
+# revoked short of rotating the Kubernetes CA.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: remote-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: remote-admin
+    namespace: cluster-access

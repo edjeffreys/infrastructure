@@ -1,0 +1,42 @@
+## Cilium Helm values
+## NOT managed by ArgoCD — apply manually:
+##   helm upgrade cilium cilium/cilium -n kube-system -f kubernetes/cilium/cilium-values.yaml
+##
+## Note: MTU (1450) is set directly in the cilium-config ConfigMap, not here.
+
+ipam:
+  mode: kubernetes
+
+l2announcements:
+  enabled: true
+
+operator:
+  replicas: 1
+  prometheus:
+    enabled: true
+    port: 9963
+    serveAddr: "0.0.0.0:9963"
+
+prometheus:
+  enabled: true
+  port: 9962
+
+hubble:
+  enabled: true
+  relay:
+    enabled: true
+  ui:
+    enabled: true
+  metrics:
+    # port-distribution was removed 2026-08-27: it produced 2,916 series (one
+    # per src/dst workload pair per port) and nothing in this repo queries it.
+    # Hubble metrics are per-workload-pair, so cardinality grows with the
+    # square of the workload count — check the series count before adding to
+    # this list. Prometheus lives on an 8GB node and mmaps its whole TSDB.
+    enabled:
+      - dns:sourceContext=workload-name;destinationContext=workload-name
+      - drop:sourceContext=workload-name;destinationContext=workload-name
+      - tcp:sourceContext=workload-name;destinationContext=workload-name
+      - flow:sourceContext=workload-name;destinationContext=workload-name
+      - icmp:sourceContext=workload-name;destinationContext=workload-name
+      - http:sourceContext=workload-name;destinationContext=workload-name

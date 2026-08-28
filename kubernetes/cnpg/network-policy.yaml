@@ -1,0 +1,121 @@
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: cnpg-system
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+
+---
+# The operator is a controller: it watches Clusters, Databases and the Pods and
+# PVCs it owns, so it needs the API server constantly.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-kube-apiserver
+  namespace: cnpg-system
+spec:
+  endpointSelector: {}
+  egress:
+    - toEntities:
+        - kube-apiserver
+    - toServices:
+        - k8sService:
+            serviceName: kubernetes
+            namespace: default
+
+---
+# The chart installs a mutating and a validating webhook, both with
+# failurePolicy: Fail. Without this ingress the API server cannot reach the
+# operator on 9443 and *every* apply of a CNPG resource is rejected — including
+# ArgoCD's, which makes the whole app fail to sync with an opaque webhook
+# timeout. This is the first thing to check if the cnpg app goes Degraded.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-webhook-ingress
+  namespace: cnpg-system
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: cloudnative-pg
+  ingress:
+    - fromEntities:
+        - kube-apiserver
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "9443"
+              protocol: TCP
+
+---
+# The operator reaches each Postgres instance's manager on 8000 (status,
+# lifecycle) and Postgres itself on 5432.
+#
+# >>> EVERY NAMESPACE CONTAINING A CNPG Cluster MUST BE LISTED HERE. <<<
+#
+# Each workload keeps its own Cluster in its own namespace — they share nothing
+# but this operator. A namespace missing from this list does not fail loudly:
+# Postgres comes up and serves queries fine, but the operator cannot read
+# instance status, so the Cluster sticks at "Instance Status Extraction Error:
+# HTTP communication issue" and never creates its replica. This was missed when
+# plex-postgres was added.
+#
+# Listed explicitly rather than matched by label across all namespaces: a
+# wildcard here would be tidier, but getting it wrong silently breaks management
+# of every existing cluster at once.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-instance-egress
+  namespace: cnpg-system
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: cloudnative-pg
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: arr
+            cnpg.io/podRole: instance
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: plex
+            cnpg.io/podRole: instance
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+            - port: "8000"
+              protocol: TCP
+
+---
+# Prometheus scrapes the operator's metrics endpoint via the chart's PodMonitor.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-prometheus-ingress
+  namespace: cnpg-system
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: cloudnative-pg
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP

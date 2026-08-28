@@ -1,0 +1,15 @@
+---
+# Node-local config and logs. Small; the node holds no library state of its own
+# (plugins and job assignments come from the server on connect).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tdarr-node-config
+  namespace: tdarr
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 5Gi

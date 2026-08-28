@@ -1,0 +1,111 @@
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: traefik
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+          rules:
+            dns:
+              - matchPattern: "*"
+
+---
+# Allow ingress from internet (load balancer / external traffic) and Tailscale proxies
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-world-ingress
+  namespace: traefik
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:app.kubernetes.io/name: traefik
+  ingress:
+    - fromEntities:
+        - world
+        - host
+        - remote-node
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: tailscale
+
+---
+# Allow traefik to reach the Kubernetes API (reads Ingress/Service resources)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-kube-apiserver
+  namespace: traefik
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:app.kubernetes.io/name: traefik
+  egress:
+    - toEntities:
+        - kube-apiserver
+    - toServices:
+        - k8sService:
+            serviceName: kubernetes
+            namespace: default
+
+---
+# Allow traefik to reach backend workload namespaces
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-backends
+  namespace: traefik
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:app.kubernetes.io/name: traefik
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: arr
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: plex
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: mealie
+
+---
+# Allow traefik to reach internal named hosts on the management network.
+# Cilium resolves the FQDN via DNS and enforces on the resulting IPs.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-internal-egress
+  namespace: traefik
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:app.kubernetes.io/name: traefik
+  egress:
+    - toFQDNs:
+        - matchName: truenas.mng.skaal.lan
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+            - port: "20909"
+              protocol: TCP
+    - toFQDNs:
+        - matchName: homeassistant.mng.skaal.lan
+      toPorts:
+        - ports:
+            - port: "8123"
+              protocol: TCP

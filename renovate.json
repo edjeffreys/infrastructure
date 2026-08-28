@@ -1,0 +1,151 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "flux": {
+    "fileMatch": ["^flux/.+\\.yaml$"]
+  },
+  "kubernetes": {
+    "fileMatch": ["^kubernetes/.+\\.yaml$"]
+  },
+  "regexManagers": [
+    {
+      "description": "Runner image for the ARC scale set. The kubernetes manager only reads manifest-shaped files, and a Helm values file has no apiVersion/kind, so this image was invisible to Renovate and silently went five releases stale. GitHub then deprecated it, the runner exited 7, and ARC tore the scale set down in a loop.",
+      "fileMatch": ["^kubernetes/arc-runners/runner-scale-set-values\\.yaml$"],
+      "matchStrings": [
+        "image:\\s*(?<depName>ghcr\\.io/actions/actions-runner):(?<currentValue>[^\\s]+)"
+      ],
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "docker"
+    },
+    {
+      "description": "kubeconform binary pinned in the manifest validation workflow.",
+      "fileMatch": ["^\\.github/workflows/validate-manifests\\.yaml$"],
+      "matchStrings": [
+        "KUBECONFORM_VERSION:\\s*\"(?<currentValue>v[\\d.]+)\""
+      ],
+      "depNameTemplate": "yannh/kubeconform",
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "description": "Flux CLI pinned in the manifest validation workflow. Must track the controllers installed in-cluster: `flux build` renders with the CLI's own kustomize and API versions, so a CLI older than the cluster can pass a manifest the cluster then rejects.",
+      "fileMatch": ["^\\.github/workflows/validate-manifests\\.yaml$"],
+      "matchStrings": [
+        "FLUX_VERSION:\\s*\"(?<currentValue>v[\\d.]+)\""
+      ],
+      "depNameTemplate": "fluxcd/flux2",
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "description": "yamllint version pinned in the manifest validation workflow.",
+      "fileMatch": ["^\\.github/workflows/validate-manifests\\.yaml$"],
+      "matchStrings": [
+        "YAMLLINT_VERSION:\\s*\"(?<currentValue>[\\d.]+)\""
+      ],
+      "depNameTemplate": "yamllint",
+      "datasourceTemplate": "pypi"
+    },
+    {
+      "fileMatch": ["^talos/talconfig\\.yaml$"],
+      "matchStrings": [
+        "talosVersion:\\s*(?<currentValue>v[\\d.]+)"
+      ],
+      "depNameTemplate": "ghcr.io/siderolabs/installer",
+      "datasourceTemplate": "docker"
+    },
+    {
+      "description": "Talos ISO version in Terraform. Must track talconfig.yaml: this is the image VMs boot in maintenance mode, and a stale one refuses configs built for a newer Kubernetes.",
+      "fileMatch": ["^terraform/proxmox/talos\\.tf$"],
+      "matchStrings": [
+        "talos_version\\s*=\\s*\"(?<currentValue>v[\\d.]+)\""
+      ],
+      "depNameTemplate": "ghcr.io/siderolabs/installer",
+      "datasourceTemplate": "docker"
+    },
+    {
+      "description": "Talos installer version in the manual worker upgrade script.",
+      "fileMatch": ["^scripts/upgrade-workers\\.sh$"],
+      "matchStrings": [
+        "metal-installer/\\$\\{SCHEMATIC\\}:(?<currentValue>v[\\d.]+)"
+      ],
+      "depNameTemplate": "ghcr.io/siderolabs/installer",
+      "datasourceTemplate": "docker"
+    },
+    {
+      "fileMatch": ["^talos/talconfig\\.yaml$"],
+      "matchStrings": [
+        "kubernetesVersion:\\s*(?<currentValue>v[\\d.]+)"
+      ],
+      "depNameTemplate": "kubernetes/kubernetes",
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "semver"
+    },
+    {
+      "description": "Postgres image on CloudNativePG Clusters. The kubernetes manager only matches `image:` keys, so `imageName:` on a Cluster CR would otherwise never be bumped.",
+      "fileMatch": ["^kubernetes/.+/postgres/cluster\\.yaml$"],
+      "matchStrings": [
+        "imageName:\\s*(?<depName>ghcr\\.io/cloudnative-pg/postgresql):(?<currentValue>[^\\s]+)"
+      ],
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "docker"
+    }
+  ],
+  "packageRules": [
+    {
+      "matchPackageNames": ["ghcr.io/siderolabs/installer", "kubernetes/kubernetes"],
+      "groupName": "talos",
+      "groupSlug": "talos"
+    },
+    {
+      "description": "ARC chart updates are held back deliberately. The pattern stays unanchored on purpose. Under the old argocd manager the depName came out doubled — `.../gha-runner-scale-set/gha-runner-scale-set` — because that manager appends `chart:` to a repoURL already ending in the chart name, so an `^actions/` anchor never matched and Renovate retried the failing lookup every run. Since wave 14 these charts are read by the flux manager from flux/apps/arc-*.yaml, which builds the name differently again; matching on the substring keeps the hold-back working across both.",
+      "matchPackageNames": ["/actions-runner-controller-charts/"],
+      "enabled": false
+    },
+    {
+      "matchManagers": ["regex"],
+      "matchDatasources": ["docker"],
+      "versioning": "docker"
+    },
+    {
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["ghcr.io/hotio/radarr"],
+      "versionCompatibility": "^release-(?<version>.*)$",
+      "versioning": "docker"
+    },
+    {
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["ghcr.io/hotio/sonarr"],
+      "versionCompatibility": "^release-(?<version>.*)$",
+      "versioning": "docker"
+    },
+    {
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["ghcr.io/hotio/sabnzbd"],
+      "versionCompatibility": "^release-(?<version>.*)$",
+      "versioning": "docker"
+    },
+    {
+      "description": "Plex runs the plex-postgresql shim image rather than plexinc/pms-docker directly (see kubernetes/plex/deployment.yaml). Its tags track the shim's version, not Plex's, so Plex updates arrive only when that project rebuilds.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["ghcr.io/cgnl/plex-postgresql-plexinc"],
+      "versioning": "semver"
+    },
+    {
+      "description": "claude-agent is built from images/claude-agent/Dockerfile by our own workflow and always pushed as :latest, so there is no upstream version to track. It also must not be caught by the pinDigests rule below: digest updates are disabled repo-wide, so a pinned digest would freeze the agent at whatever it was first pinned to.",
+      "matchPackageNames": ["ghcr.io/edjeffreys/claude-agent"],
+      "enabled": false
+    },
+    {
+      "description": "claude-agent is built by hand from images/claude-agent/Dockerfile and pushed as :latest, so there is no upstream version for Renovate to track here. It also must not be caught by the pinDigests rule below: digest updates are disabled repo-wide, so a pinned digest would freeze the agent at whatever it was first pinned to. The Dockerfile's own ARG pins are still managed.",
+      "matchPackageNames": ["ghcr.io/edjeffreys/claude-agent"],
+      "enabled": false
+    },
+    {
+      "matchManagers": ["kubernetes"],
+      "matchDatasources": ["docker"],
+      "pinDigests": true
+    },
+    {
+      "matchUpdateTypes": ["digest"],
+      "enabled": false
+    }
+  ]
+}

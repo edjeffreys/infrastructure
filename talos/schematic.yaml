@@ -1,0 +1,10 @@
+customization:
+  systemExtensions:
+    officialExtensions:
+      - siderolabs/i915              # Intel iGPU (QuickSync on talos-worker-0)
+      - siderolabs/intel-ucode       # Intel CPU microcode
+      - siderolabs/iscsi-tools       # Longhorn block storage
+      - siderolabs/util-linux-tools  # Longhorn volume trimming (fstrim)
+      - siderolabs/nfs-utils         # NFS mounts for TrueNAS PVCs
+      - siderolabs/qemu-guest-agent  # Proxmox guest agent
+      - siderolabs/tailscale         # Node-level Tailscale

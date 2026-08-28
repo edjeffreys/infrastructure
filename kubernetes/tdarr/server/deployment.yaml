@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tdarr-server
+  namespace: tdarr
+spec:
+  replicas: 1
+  strategy:
+    # RWO longhorn PVC — the old pod must release it before the new one binds.
+    type: Recreate
+  selector:
+    matchLabels:
+      app: tdarr-server
+  template:
+    metadata:
+      labels:
+        app: tdarr-server
+    spec:
+      nodeSelector:
+        node-type: standard
+      containers:
+        - name: tdarr-server
+          image: ghcr.io/haveagitgat/tdarr:2.86.01@sha256:45742f00e51a58553844c8b13d97e7ae9b2ee9a056bd8e5993d9a8282a45a23f
+          env:
+            # Matches the arr stack and plex so rewritten files keep consistent
+            # ownership on the shared NFS export.
+            - name: PUID
+              value: "3000"
+            - name: PGID
+              value: "3000"
+            - name: TZ
+              value: "Etc/UTC"
+            - name: serverIP
+              value: "0.0.0.0"
+            - name: serverPort
+              value: "8266"
+            - name: webUIPort
+              value: "8265"
+            # The server image can run its own bundled worker. Disabled: this
+            # pod is on a standard node with no GPU, so an internal node would
+            # quietly transcode on CPU and undo the point of the exercise. All
+            # work goes to the tdarr-node deployment, which holds the iGPU.
+            - name: internalNode
+              value: "false"
+            - name: inContainer
+              value: "true"
+            - name: ffmpegVersion
+              value: "7"
+          ports:
+            - name: web
+              containerPort: 8265
+            - name: server
+              containerPort: 8266
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8265
+            periodSeconds: 10
+            failureThreshold: 30
+          resources:
+            requests:
+              memory: 512Mi
+              cpu: 100m
+            limits:
+              memory: 2Gi
+              cpu: 1000m
+          volumeMounts:
+            - name: server
+              mountPath: /app/server
+            - name: server
+              subPath: configs
+              mountPath: /app/configs
+            - name: server
+              subPath: logs
+              mountPath: /app/logs
+            - name: media
+              mountPath: /data
+            - name: cache
+              mountPath: /temp
+      volumes:
+        - name: server
+          persistentVolumeClaim:
+            claimName: tdarr-server
+        - name: media
+          persistentVolumeClaim:
+            claimName: tdarr-media
+        - name: cache
+          persistentVolumeClaim:
+            claimName: tdarr-cache

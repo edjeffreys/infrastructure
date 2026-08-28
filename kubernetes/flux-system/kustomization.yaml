@@ -1,0 +1,8 @@
+# An explicit resources list, not a directory sweep. kustomize-controller would
+# otherwise pick up every YAML here, including flux-git-auth-secret.yaml — which
+# holds unresolved op:// references and must never be applied by a controller.
+# This list is the Flux equivalent of ArgoCD's `directory.exclude`.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - network-policy.yaml

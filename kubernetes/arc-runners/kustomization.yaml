@@ -1,0 +1,28 @@
+# Explicit resources list, not autodetect: runner-scale-set-values.yaml is Helm
+# values with no apiVersion/kind, and autodetect would fail the whole build on
+# it with "missing Resource metadata". This is the Flux equivalent of ArgoCD's
+# `directory.exclude: "*-values.yaml"`.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: arc-runners
+resources:
+  - namespace.yaml
+  - network-policy.yaml
+  - github-app-secret.yaml
+  - node-manager-rbac.yaml
+  - packer-proxmox-vars-secret.yaml
+  - runner-tokens-secret.yaml
+
+configMapGenerator:
+  # Replaces ArgoCD's `$values/` git ref, which has no Flux equivalent. The
+  # values file keeps its name and location for a second reason here: it is the
+  # only values file in the repo pinning a container image, and Renovate reaches
+  # it through a regexManager keyed off the `-values.yaml` suffix. That pin going
+  # stale is what put the runners in ARC's terminal `Outdated` phase before.
+  - name: arc-runners-values
+    files:
+      - values.yaml=runner-scale-set-values.yaml
+    options:
+      disableNameSuffixHash: true
+      labels:
+        reconcile.fluxcd.io/watch: Enabled

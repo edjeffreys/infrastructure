@@ -1,0 +1,101 @@
+---
+# One-shot: copy Plex's two SQLite databases off the live config volume onto
+# the dedicated plex-sourcedb volume, so the migration reads a copy and never
+# the originals.
+#
+# Applied by hand, not through Flux — the plex Kustomization syncs
+# kubernetes/plex with prune: true, so a completed Job kept there would be
+# fought over. Resources created out of band are not in Flux's inventory and
+# are not pruned.
+#
+#   kubectl apply -f scripts/plex-postgres/copy-source-db.yaml
+#   kubectl -n plex wait --for=condition=complete --timeout=10m job/plex-copy-source-db
+#   kubectl -n plex logs job/plex-copy-source-db
+#
+# REQUIRES deployment/plex at replicas 0: plex-config is ReadWriteOnce, so this
+# Job cannot attach it while Plex holds it on another node.
+#
+# plex-config is mounted read-only AND is the only mount of that volume in this
+# pod. Both halves matter — a readOnly mount protects that path, not the
+# underlying data, so it is worthless if the same volume is also mounted
+# read-write elsewhere in the same pod. That is precisely what went wrong on the
+# first cutover attempt.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: plex-copy-source-db
+  namespace: plex
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: plex-migration
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        node-type: standard
+      securityContext:
+        runAsUser: 3000
+        runAsGroup: 3000
+        fsGroup: 3000
+      containers:
+        - name: copy
+          image: busybox:1.38.0@sha256:dc2d74b28e4cf8984fa52af1f39bc7c3d9c73760b41a74d629f5d11b1ab28616
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              SRC="/src/Library/Application Support/Plex Media Server/Plug-in Support/Databases"
+
+              echo "=== proving /src is genuinely read-only ==="
+              if touch /src/.write-test 2>/dev/null; then
+                echo "FATAL: /src is writable — refusing to run." >&2
+                rm -f /src/.write-test
+                exit 1
+              fi
+              echo "confirmed: /src rejects writes"
+
+              echo "=== source ==="
+              ls -l "$SRC/com.plexapp.plugins.library.db" "$SRC/com.plexapp.plugins.library.blobs.db"
+
+              echo "=== copying ==="
+              cp "$SRC/com.plexapp.plugins.library.db"       /dst/
+              cp "$SRC/com.plexapp.plugins.library.blobs.db" /dst/
+              # Any -wal / -shm alongside them must come too, or SQLite opens a
+              # stale database. They should be absent after a clean shutdown.
+              for s in -wal -shm; do
+                for b in com.plexapp.plugins.library.db com.plexapp.plugins.library.blobs.db; do
+                  [ -f "$SRC/$b$s" ] && cp "$SRC/$b$s" /dst/ && echo "  also copied $b$s"
+                done
+              done
+
+              echo "=== copy ==="
+              ls -l /dst/
+
+              echo "=== byte-for-byte check ==="
+              for b in com.plexapp.plugins.library.db com.plexapp.plugins.library.blobs.db; do
+                a=$(cksum < "$SRC/$b" | cut -d' ' -f1,2)
+                c=$(cksum < "/dst/$b" | cut -d' ' -f1,2)
+                if [ "$a" != "$c" ]; then
+                  echo "FATAL: checksum mismatch on $b ($a vs $c)" >&2
+                  exit 1
+                fi
+                echo "  $b OK ($a)"
+              done
+              echo "=== done ==="
+          volumeMounts:
+            - name: src
+              mountPath: /src
+              readOnly: true
+            - name: dst
+              mountPath: /dst
+      volumes:
+        - name: src
+          persistentVolumeClaim:
+            claimName: plex-config
+            readOnly: true
+        - name: dst
+          persistentVolumeClaim:
+            claimName: plex-sourcedb

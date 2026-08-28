@@ -1,0 +1,23 @@
+# Explicit resources list, not autodetect: traefik-values.yaml is Helm values
+# with no apiVersion/kind, and autodetect would fail the whole build on it with
+# "missing Resource metadata". This is the Flux equivalent of ArgoCD's
+# `directory.exclude: "*-values.yaml"`.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: traefik
+resources:
+  - lb-pool.yaml
+  - namespace.yaml
+  - network-policy.yaml
+
+configMapGenerator:
+  # Replaces ArgoCD's `$values/` git ref, which has no Flux equivalent. The
+  # values file itself stays exactly where it was — Renovate's regexManager and
+  # kubeconform's ignore pattern both key off the `-values.yaml` suffix.
+  - name: traefik-values
+    files:
+      - values.yaml=traefik-values.yaml
+    options:
+      disableNameSuffixHash: true
+      labels:
+        reconcile.fluxcd.io/watch: Enabled

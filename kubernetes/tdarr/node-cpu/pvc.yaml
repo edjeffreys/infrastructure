@@ -1,0 +1,16 @@
+---
+# Config/logs for the CPU-only node. Separate PVC rather than shared with the
+# GPU node: both are RWO longhorn, and Tdarr nodes keep their own identity and
+# logs.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tdarr-node-cpu-config
+  namespace: tdarr
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 5Gi

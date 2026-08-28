@@ -1,0 +1,116 @@
+name: Talos Upgrade
+
+on:
+  workflow_dispatch:
+
+jobs:
+  upgrade:
+    runs-on: arc-runners
+    env:
+      # Upgrades MUST use the factory image carrying the node's schematic.
+      # ghcr.io/siderolabs/installer ships no system extensions, so upgrading
+      # with it silently strips iscsi-tools, nfs-utils, util-linux-tools and
+      # tailscale — taking Longhorn and NFS down across the cluster.
+      # Control plane and workers have different extension sets, hence two IDs.
+      SCHEMATIC_CP: 7d4c31cbd96db9f90c874990697c523482b2bae27fb4631d5583dcd9c281b1ff
+      SCHEMATIC_WORKER: bcee35443222bda504c4a66bd9900decbf0f0e20e26f03d51f1a71354ed1ef4f
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Read versions from talconfig.yaml
+        id: versions
+        run: |
+          TALOS_VERSION=$(grep '^talosVersion:' talos/talconfig.yaml | awk '{print $2}')
+          K8S_VERSION=$(grep '^kubernetesVersion:' talos/talconfig.yaml | awk '{print $2}')
+          echo "talos=${TALOS_VERSION}" >> $GITHUB_OUTPUT
+          echo "kubernetes=${K8S_VERSION}" >> $GITHUB_OUTPUT
+          echo "Talos: ${TALOS_VERSION}, Kubernetes: ${K8S_VERSION}"
+
+      - name: Install talosctl
+        run: |
+          curl -sL https://talos.dev/install | sh
+          talosctl version --client
+
+      - name: Configure talosctl
+        env:
+          # Not named TALOSCONFIG: talosctl reads that as a path to a config
+          # file, not as the config itself.
+          TALOSCONFIG_SECRET: ${{ secrets.TALOSCONFIG }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.talos
+
+          if [ -z "${TALOSCONFIG_SECRET}" ]; then
+            echo "::error::TALOSCONFIG secret is empty or unset"
+            exit 1
+          fi
+
+          # The secret is stored base64-encoded. Writing it out raw produces a
+          # config talosctl cannot parse, so decode it — falling back to raw in
+          # case the secret is ever rotated in plain YAML.
+          if printf '%s' "${TALOSCONFIG_SECRET}" | base64 -d > ~/.talos/config 2>/dev/null \
+             && grep -q '^contexts:' ~/.talos/config; then
+            echo "talosconfig: decoded from base64"
+          else
+            printf '%s' "${TALOSCONFIG_SECRET}" > ~/.talos/config
+            echo "talosconfig: written as raw YAML"
+          fi
+
+          chmod 600 ~/.talos/config
+          grep -q '^contexts:' ~/.talos/config || {
+            echo "::error::talosconfig is not valid — no 'contexts:' key found"
+            exit 1
+          }
+
+      - name: Upgrade control plane nodes (rolling)
+        run: |
+          for NODE in 10.0.0.10 10.0.0.11 10.0.0.12; do
+            echo "==> Upgrading control plane node $NODE to ${{ steps.versions.outputs.talos }}"
+            talosctl upgrade \
+              --nodes $NODE \
+              --image factory.talos.dev/metal-installer/${SCHEMATIC_CP}:${{ steps.versions.outputs.talos }} \
+              --wait \
+              --timeout 10m
+            echo "==> Waiting for $NODE to be ready"
+            sleep 30
+            talosctl health --nodes $NODE --wait-timeout 5m
+            echo "==> $NODE upgraded successfully"
+          done
+
+      - name: Upgrade worker nodes (rolling)
+        run: |
+          for NODE in 10.11.0.10 10.11.0.11 10.11.0.12; do
+            echo "==> Upgrading worker node $NODE to ${{ steps.versions.outputs.talos }}"
+            talosctl upgrade \
+              --nodes $NODE \
+              --image factory.talos.dev/metal-installer/${SCHEMATIC_WORKER}:${{ steps.versions.outputs.talos }} \
+              --wait \
+              --timeout 10m
+            echo "==> Waiting for $NODE to be ready"
+            sleep 30
+            talosctl health --nodes $NODE --wait-timeout 5m
+            echo "==> $NODE upgraded successfully"
+          done
+
+      - name: Upgrade PIA worker nodes (rolling)
+        run: |
+          for NODE in 10.200.0.10 10.200.0.11; do
+            echo "==> Upgrading PIA worker node $NODE to ${{ steps.versions.outputs.talos }}"
+            talosctl upgrade \
+              --nodes $NODE \
+              --image factory.talos.dev/metal-installer/${SCHEMATIC_WORKER}:${{ steps.versions.outputs.talos }} \
+              --wait \
+              --timeout 10m
+            echo "==> Waiting for $NODE to be ready"
+            sleep 30
+            talosctl health --nodes $NODE --wait-timeout 5m
+            echo "==> $NODE upgraded successfully"
+          done
+
+      - name: Upgrade Kubernetes
+        run: |
+          echo "==> Upgrading Kubernetes to ${{ steps.versions.outputs.kubernetes }}"
+          talosctl upgrade-k8s \
+            --nodes 10.0.0.10 \
+            --to ${{ steps.versions.outputs.kubernetes }}

@@ -1,0 +1,22 @@
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: allow-kubelet-probes
+spec:
+  # Allow kubelet readiness/liveness/startup probes from the host on all pods.
+  # Probes originate from the node's host network namespace and are dropped by
+  # the default-deny policy without this explicit allowance.
+  # Scoped to the same namespaces covered by default-deny — kube-system pods
+  # have no default-deny ingress and must not get one introduced here either.
+  endpointSelector:
+    matchExpressions:
+      - key: k8s:io.kubernetes.pod.namespace
+        operator: NotIn
+        values:
+          - kube-system
+          - kube-public
+          - kube-node-lease
+          - cilium-secrets
+  ingress:
+    - fromEntities:
+        - host

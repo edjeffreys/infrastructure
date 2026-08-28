@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sabnzbd
+  namespace: arr
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: sabnzbd
+  template:
+    metadata:
+      labels:
+        app: sabnzbd
+    spec:
+      nodeSelector:
+        node-type: pia
+      tolerations:
+        - key: node-type
+          value: pia
+
+      containers:
+        - name: sabnzbd
+          image: ghcr.io/hotio/sabnzbd:release-v5.1.2@sha256:a227c53acab958221e94a4ced840e228e055b0f21f7172eea9350e1bc12e82df
+          env:
+            - name: PUID
+              value: "3000"
+            - name: PGID
+              value: "3000"
+            - name: SABNZBD__HOST_WHITELIST
+              value: "sabnzbd,sabnzbd.tail5f17e.ts.net"
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /api?mode=version
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: 100m
+            limits:
+              memory: 2048Mi
+              cpu: 3000m
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: sabnzbd-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: media

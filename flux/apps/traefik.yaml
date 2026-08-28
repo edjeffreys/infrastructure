@@ -1,0 +1,57 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: traefik
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: https://traefik.github.io/charts
+
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: traefik
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./kubernetes/traefik
+  prune: true
+  wait: true
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: infrastructure
+
+---
+# Lives in the traefik namespace, not flux-system, so that `valuesFrom` can
+# read the ConfigMap the Kustomization above generates from
+# traefik-values.yaml.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: traefik
+  namespace: traefik
+spec:
+  interval: 30m
+  # NOT optional, and not cosmetic — carried over verbatim from the ArgoCD
+  # Application. The chart names its Deployment/Service after the release, and
+  # the live Deployment's selector is `app.kubernetes.io/instance:
+  # ingress-traefik` — an immutable field. The HelmRelease is named `traefik`
+  # to match the app directory (this migration's convention), but the release
+  # itself predates that rename and is still `ingress-traefik`. Defaulting
+  # releaseName to the HelmRelease name would force a Deployment and
+  # LoadBalancer Service recreation, taking every *.skaal.dev route down for
+  # the swap.
+  releaseName: ingress-traefik
+  chart:
+    spec:
+      chart: traefik
+      version: "41.4.0"
+      sourceRef:
+        kind: HelmRepository
+        name: traefik
+        namespace: flux-system
+  valuesFrom:
+    - kind: ConfigMap
+      name: traefik-values

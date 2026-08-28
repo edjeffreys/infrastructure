@@ -1,0 +1,85 @@
+---
+# One-shot: copy the SQLite databases back from plex-sourcedb onto the live
+# config volume, undoing the shim's shadow-database replacement.
+#
+#   kubectl apply -f scripts/plex-postgres/restore-source-db.yaml
+#   kubectl -n plex logs -f job/plex-restore-source-db
+#
+# REQUIRES deployment/plex at replicas 0.
+#
+# This is the cheap rollback that plex-sourcedb exists to provide. The Longhorn
+# snapshot plex-config-pre-postgres-20260812-2155 remains the fallback if this
+# copy is ever in doubt — it restores the whole volume, not just the databases.
+#
+# Note the mount directions are the reverse of copy-source-db.yaml: here
+# plex-config is read-WRITE (we are restoring into it) and plex-sourcedb is
+# read-only. plex-config is still the only mount of that volume in this pod.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: plex-restore-source-db
+  namespace: plex
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: plex-migration
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        node-type: standard
+      securityContext:
+        runAsUser: 3000
+        runAsGroup: 3000
+        fsGroup: 3000
+      containers:
+        - name: restore
+          image: busybox:1.38.0@sha256:dc2d74b28e4cf8984fa52af1f39bc7c3d9c73760b41a74d629f5d11b1ab28616
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              DST="/dst/Library/Application Support/Plex Media Server/Plug-in Support/Databases"
+
+              echo "=== shadow stubs currently in place ==="
+              ls -l "$DST"/com.plexapp.plugins.library.db "$DST"/com.plexapp.plugins.library.blobs.db 2>/dev/null || true
+
+              echo "=== restoring from the verified copy ==="
+              for b in com.plexapp.plugins.library.db com.plexapp.plugins.library.blobs.db; do
+                # Drop the shim's -wal/-shm alongside the stub, or SQLite will
+                # try to replay a journal belonging to a different database.
+                rm -f "$DST/$b" "$DST/$b-wal" "$DST/$b-shm"
+                cp "/src/$b" "$DST/$b"
+                chmod 0600 "$DST/$b"
+              done
+
+              echo "=== restored ==="
+              ls -l "$DST"/com.plexapp.plugins.library.db "$DST"/com.plexapp.plugins.library.blobs.db
+
+              echo "=== byte-for-byte check against the copy ==="
+              for b in com.plexapp.plugins.library.db com.plexapp.plugins.library.blobs.db; do
+                a=$(cksum < "/src/$b" | cut -d' ' -f1,2)
+                c=$(cksum < "$DST/$b" | cut -d' ' -f1,2)
+                if [ "$a" != "$c" ]; then
+                  echo "FATAL: checksum mismatch on $b ($a vs $c)" >&2
+                  exit 1
+                fi
+                echo "  $b OK ($a)"
+              done
+              echo "=== done ==="
+          volumeMounts:
+            - name: src
+              mountPath: /src
+              readOnly: true
+            - name: dst
+              mountPath: /dst
+      volumes:
+        - name: src
+          persistentVolumeClaim:
+            claimName: plex-sourcedb
+            readOnly: true
+        - name: dst
+          persistentVolumeClaim:
+            claimName: plex-config

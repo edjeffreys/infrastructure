@@ -1,0 +1,191 @@
+name: Validate manifests
+
+# Nothing reads these manifests until after merge — ArgoCD and, during the
+# migration, Flux both reconcile from master. A bad apiVersion or a renamed
+# directory shows up as a Degraded app in the cluster, not as a failed build.
+# This is that check, moved before merge. It matters more under Flux, which
+# has no web UI to notice a broken app in.
+
+on:
+  pull_request:
+    # GitHub Actions does not reliably support YAML anchors, so the two path
+    # filters are duplicated on purpose. Keep them in step.
+    paths:
+      - kubernetes/**
+      - flux/**
+      - scripts/plex-postgres/**
+      - scripts/check-flux-refs.py
+      - .yamllint
+      - .github/workflows/validate-manifests.yaml
+  push:
+    branches: [master]
+    paths:
+      - kubernetes/**
+      - flux/**
+      - scripts/plex-postgres/**
+      - scripts/check-flux-refs.py
+      - .yamllint
+      - .github/workflows/validate-manifests.yaml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# The arc-runners scale set is minRunners 0 / maxRunners 4, so a stacked push
+# should not sit waiting on a cold-started runner that is already obsolete.
+concurrency:
+  group: validate-manifests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: arc-runners
+    env:
+      YAMLLINT_VERSION: "1.38.0"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # ghcr.io/actions/actions-runner is a minimal dotnet/runtime-deps image —
+      # no python3, no sudo, no apt rights. uv is a static binary that brings
+      # its own CPython, so it works where actions/setup-python may not.
+      #
+      # Pinned to a full version on purpose: setup-uv only publishes moving
+      # major tags up to v7, so `@v10` does not resolve and the job dies at
+      # "Prepare all required actions" with "unable to find version v10".
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.0.1
+
+      - name: yamllint
+        # No --strict: .yamllint extends `relaxed`, so cosmetic findings are
+        # warnings that annotate the PR, and only genuine parse errors,
+        # duplicate keys and tabs fail the job.
+        run: uvx "yamllint@${YAMLLINT_VERSION}" --format github -c .yamllint .
+
+      - name: Check Flux references
+        # Catches the failure kubeconform structurally cannot see: a
+        # Kustomization whose YAML is valid but whose path, sourceRef or
+        # dependsOn points at something that no longer exists, or a valuesFrom
+        # with no configMapGenerator behind it. Also enforces an explicit
+        # metadata.namespace on every HelmRelease and chart source — without one
+        # Renovate stops offering chart updates and reports nothing.
+        #
+        # check-argocd-refs.py was the equivalent on the ArgoCD side and went
+        # with it in wave 14.
+        run: uv run --script scripts/check-flux-refs.py
+
+  schema:
+    runs-on: arc-runners
+    env:
+      KUBECONFORM_VERSION: "v0.8.0"
+      FLUX_VERSION: "v2.9.4"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Read Kubernetes version from talconfig.yaml
+        id: versions
+        # Same grep the talos-upgrade workflow uses. Validating against the
+        # version the cluster actually runs means there is no second place to
+        # bump when Talos moves.
+        run: |
+          K8S_VERSION=$(grep '^kubernetesVersion:' talos/talconfig.yaml | awk '{print $2}')
+          # talconfig.yaml carries v1.36.1; kubeconform wants 1.36.1.
+          echo "kubernetes=${K8S_VERSION#v}" >> $GITHUB_OUTPUT
+          echo "Validating against Kubernetes ${K8S_VERSION}"
+
+      - name: Install kubeconform
+        run: |
+          set -euo pipefail
+          curl -sSLf \
+            "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
+            | tar -xz -C "${RUNNER_TEMP}" kubeconform
+          echo "${RUNNER_TEMP}" >> "$GITHUB_PATH"
+
+      - name: kubeconform
+        # Deliberately NOT run with -ignore-missing-schemas. Every CRD group in
+        # this repo — cilium.io, argoproj.io, monitoring.coreos.com,
+        # postgresql.cnpg.io, tailscale.com, onepassword.com, longhorn.io,
+        # traefik.io, cert-manager.io, and the four Flux groups
+        # (source/kustomize/helm/notification.toolkit.fluxcd.io plus
+        # kustomize.config.k8s.io for kustomization.yaml itself) — resolves
+        # against the CRDs-catalog today, so a hard failure is the signal that a
+        # newly added operator's CRs are going unvalidated. If the catalog
+        # genuinely lacks a schema, add a -schema-location for it rather than
+        # switching the run to ignore-missing.
+        #
+        # talos/ is not passed at all: talconfig.yaml and schematic.yaml are not
+        # manifests, and talos/manifests/ holds generated bootstrap dumps.
+        #
+        # One exclusion:
+        #   *-values.yaml  Helm values, not manifests. Same glob ArgoCD uses in
+        #                  `directory.exclude`. Note this must stay a filename
+        #                  match — descheduler-values.yaml starts with
+        #                  `kind: CronJob`, so sniffing the content would
+        #                  misclassify it.
+        #
+        # kubernetes/kube-system/coredns.yaml used to need a second exclusion:
+        # as a bare partial Deployment it had no selector and no containers and
+        # could never satisfy the schema. It now carries the selector, template
+        # labels and empty `containers: []` that Flux's `ssa: merge` recipe
+        # requires, which happens to make it schema-valid, so it is checked like
+        # anything else.
+        run: |
+          kubeconform \
+            -strict \
+            -summary \
+            -n 8 \
+            -kubernetes-version "${{ steps.versions.outputs.kubernetes }}" \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            -ignore-filename-pattern '.*-values\.yaml' \
+            kubernetes flux scripts/plex-postgres
+
+      - name: Install Flux CLI
+        run: |
+          set -euo pipefail
+          curl -sSLf \
+            "https://github.com/fluxcd/flux2/releases/download/${FLUX_VERSION}/flux_${FLUX_VERSION#v}_linux_amd64.tar.gz" \
+            | tar -xz -C "${RUNNER_TEMP}" flux
+          echo "${RUNNER_TEMP}" >> "$GITHUB_PATH"
+
+      - name: Render every Flux Kustomization
+        # The question kubeconform above cannot answer: will Flux actually
+        # reconcile this? `flux build --dry-run` needs no cluster, and
+        # --recursive walks from the root Kustomization into every child, so
+        # this renders the same tree kustomize-controller would.
+        #
+        # It fails on the three things that otherwise only surface after merge,
+        # as a NotReady Kustomization with no UI to notice it in:
+        #   * a spec.path pointing at a directory that does not exist
+        #   * a YAML under that path that is not a Kubernetes manifest — the
+        #     trap waiting for the Helm apps, whose *-values.yaml files must be
+        #     excluded by an explicit resources: list rather than autodetect
+        #   * two manifests declaring the same resource
+        #
+        # It does NOT render Helm charts: a HelmRelease is validated as a
+        # manifest, but what the chart produces is helm-controller's business
+        # and needs the chart pulled.
+        run: |
+          flux build kustomization root \
+            --path ./flux/apps \
+            --kustomization-file ./flux/bootstrap/root.yaml \
+            --dry-run \
+            --recursive \
+            --local-sources GitRepository/flux-system/infrastructure=. \
+            > "${RUNNER_TEMP}/flux-render.yaml"
+          echo "rendered $(grep -c '^kind:' "${RUNNER_TEMP}/flux-render.yaml") resources"
+
+      - name: kubeconform the rendered output
+        # Validating what Flux actually applies, not just the files in git —
+        # this is the only step that sees the result of any kustomize
+        # transformation.
+        run: |
+          kubeconform \
+            -strict \
+            -summary \
+            -n 8 \
+            -kubernetes-version "${{ steps.versions.outputs.kubernetes }}" \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            "${RUNNER_TEMP}/flux-render.yaml"

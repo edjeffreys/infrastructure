@@ -1,0 +1,47 @@
+---
+# Cilium inter-node health checks (ICMP echo + TCP 4240). Health endpoints
+# carry the reserved:health identity rather than a pod identity.
+#
+# The egress half is what makes `default-deny` safe to apply. default-deny
+# selects on `k8s:io.kubernetes.pod.namespace NotIn [kube-system, ...]`, and the
+# health endpoint carries no namespace label at all — a missing label satisfies
+# NotIn, so default-deny selects the health endpoint and denies its egress.
+# cilium-health works by probing *other* nodes, so without this rule node-to-node
+# health reporting breaks the moment default-deny lands. No workload traffic is
+# affected either way, which is exactly what would make it hard to attribute.
+#
+# Supersedes the staged allow-health.yaml, which declared the same thing as a
+# separate `allow-cilium-health` policy. Merged in here instead of applied
+# alongside, so there is one policy for the health identity rather than two
+# overlapping ones.
+#
+# Note the asymmetry: ingress is port-scoped, egress is not. The ingress rule is
+# kept exactly as it has been live since 2026-05-22 rather than being rewritten
+# on the same commit that changes behaviour. The egress rule is scoped to the
+# remote-node and host entities but deliberately not to a port list — guessing
+# the probe ports wrong would reintroduce the precise breakage this rule exists
+# to prevent, and the reachable set is already only "the cluster's own nodes".
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: allow-health-checks
+spec:
+  endpointSelector:
+    matchLabels:
+      reserved:health: ""
+  ingress:
+    - fromEntities:
+        - remote-node
+        - host
+      toPorts:
+        - ports:
+            - port: "4240"
+              protocol: TCP
+    - icmps:
+        - fields:
+            - type: 8
+              family: IPv4
+  egress:
+    - toEntities:
+        - remote-node
+        - host

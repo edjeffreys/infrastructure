@@ -1,0 +1,44 @@
+service:
+  type: LoadBalancer
+  ipFamilyPolicy: PreferDualStack
+  ipFamilies:
+    - IPv4
+    - IPv6
+  spec:
+    loadBalancerIP: "10.0.0.210"
+
+# Run on CP node — firewall rules permit outbound to internal services (e.g. TrueNAS)
+# from CP node IPs only.
+nodeSelector:
+  node-role.kubernetes.io/control-plane: ""
+tolerations:
+  - key: node-role.kubernetes.io/control-plane
+    operator: Exists
+    effect: NoSchedule
+
+ingressClass:
+  enabled: true
+  isDefaultClass: true
+  name: traefik
+
+providers:
+  kubernetesIngress:
+    enabled: true
+    allowExternalNameServices: true
+  kubernetesCRD:
+    enabled: true
+    allowExternalNameServices: true
+
+# Renamed from `logs.general.level` in traefik chart v41 — the chart schema
+# sets additionalProperties: false, so the old key is a hard sync failure
+# rather than being silently ignored.
+log:
+  level: INFO
+
+ports:
+  web:
+    port: 80
+    exposedPort: 80
+  websecure:
+    port: 443
+    exposedPort: 443

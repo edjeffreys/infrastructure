@@ -1,0 +1,85 @@
+---
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: homelab
+  namespace: monitoring
+  labels:
+    alertmanagerConfig: homelab
+spec:
+  route:
+    receiver: pushover
+    matchers:
+      - name: severity
+        matchType: =~
+        value: "warning|critical"
+    groupBy: ['alertname', 'namespace']
+    groupWait: 30s
+    groupInterval: 5m
+    repeatInterval: 4h
+  receivers:
+    - name: pushover
+      pushoverConfigs:
+        - userKey:
+            name: pushover-credentials
+            key: username
+          token:
+            name: pushover-credentials
+            key: credential
+          title: '[{{ .Status | toUpper }}] {{ .GroupLabels.alertname }}'
+          message: '{{ range .Alerts }}{{ .Annotations.summary }}{{ "\n" }}{{ end }}'
+          priority: '{{ if eq .Status "firing" }}{{ if eq .CommonLabels.severity "critical" }}1{{ else }}0{{ end }}{{ else }}-1{{ end }}'
+          url: 'https://grafana.tail5f17e.ts.net/explore?orgId=1&left={"datasource":"prometheus","queries":[{"refId":"A","expr":"{{ (index .Alerts 0).Labels.alertname }}"}],"range":{"from":"now-1h","to":"now"}}'
+          urlTitle: 'Open in Grafana'
+          retry: 1m
+          expire: 1h
+
+---
+# Custom rules not covered by kube-prometheus-stack defaults
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: homelab-custom
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: homelab.cilium
+      rules:
+        - alert: HubblePolicyDropSpike
+          expr: sum(rate(hubble_drop_total{reason="POLICY_DENIED"}[5m])) > 5
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Cilium policy drops spike"
+            description: "More than 5 policy-denied drops/sec sustained for 5 minutes. Check network policies."
+
+    - name: homelab.pods
+      rules:
+        - alert: PodCrashLooping
+          expr: |
+            max_over_time(kube_pod_container_status_waiting_reason{
+              reason="CrashLoopBackOff",
+              namespace=~"arr|plex|mealie|paperless|homeassistant|monitoring|loki|pinchflat"
+            }[5m]) >= 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "{{ $labels.namespace }}/{{ $labels.pod }} crash looping"
+            description: "Container {{ $labels.container }} in {{ $labels.namespace }}/{{ $labels.pod }} is in CrashLoopBackOff."
+
+        - alert: PodOOMKilled
+          expr: |
+            kube_pod_container_status_last_terminated_reason{
+              reason="OOMKilled",
+              namespace=~"arr|plex|mealie|paperless|homeassistant|monitoring|loki|pinchflat"
+            } == 1
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.namespace }}/{{ $labels.pod }} OOMKilled"
+            description: "Container {{ $labels.container }} in {{ $labels.namespace }}/{{ $labels.pod }} was OOMKilled."

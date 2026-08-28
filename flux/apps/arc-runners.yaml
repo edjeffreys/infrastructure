@@ -1,0 +1,51 @@
+# Chart source is the shared `actions-runner-controller` OCI HelmRepository
+# declared in flux/apps/arc-systems.yaml.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: arc-runners
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./kubernetes/arc-runners
+  prune: true
+  wait: true
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: infrastructure
+
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: arc-runners
+  namespace: arc-runners
+spec:
+  interval: 30m
+  # The first `dependsOn` in the tree, and it is load-bearing rather than
+  # tidiness: this chart creates an AutoscalingRunnerSet, whose CRD is shipped
+  # by the controller chart in arc-systems. ArgoCD papered over the ordering by
+  # retrying a failed sync until the CRD appeared; Flux wants it stated. On the
+  # live cluster the CRD is already present, so this changes nothing today — it
+  # matters on a cold rebuild.
+  dependsOn:
+    - name: arc-systems
+      namespace: arc-systems
+  # Do not change this without changing every `runs-on:` in .github/workflows/.
+  # ARC derives the runner label from the Helm release name, so the label is
+  # `arc-runners` today only because that is the ArgoCD Application name. A
+  # rename offers a label nothing requests: jobs then queue forever, with no
+  # error surfaced anywhere in GitHub or the cluster.
+  releaseName: arc-runners
+  chart:
+    spec:
+      chart: gha-runner-scale-set
+      version: "0.14.1"
+      sourceRef:
+        kind: HelmRepository
+        name: actions-runner-controller
+        namespace: flux-system
+  valuesFrom:
+    - kind: ConfigMap
+      name: arc-runners-values
