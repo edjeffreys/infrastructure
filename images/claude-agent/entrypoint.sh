@@ -27,8 +27,24 @@ REPO_URL="${REPO_URL:-https://github.com/edjeffreys/infrastructure}"
 REPO_DIR="${HOME}/workspace/$(basename "${REPO_URL}" .git)"
 SESSION_NAME="${REMOTE_CONTROL_NAME:-homelab}"
 
-git config --global user.name "${GIT_AUTHOR_NAME:-claude-agent}"
-git config --global user.email "${GIT_AUTHOR_EMAIL:-claude-agent@users.noreply.github.com}"
+# Identity. The fallbacks are the repo owner, deliberately: the previous
+# default of `claude-agent <claude-agent@users.noreply.github.com>` was not an
+# inert placeholder — that address belongs to a real, unrelated GitHub account,
+# so unattended commits were credited to a stranger. Claude is recorded with a
+# `Co-Authored-By:` trailer on the commit message instead.
+GIT_AUTHOR_NAME="${GIT_AUTHOR_NAME:-Ed Jeffreys}"
+GIT_AUTHOR_EMAIL="${GIT_AUTHOR_EMAIL:-ed@edjeffreys.com}"
+
+# Committer is a separate field and git reads it from user.name/user.email, not
+# from GIT_AUTHOR_*. Export it explicitly so a repo carrying its own local
+# config cannot pull the committer back to something else — a freshly cloned
+# repo has no local identity and silently inherits the global one.
+export GIT_AUTHOR_NAME GIT_AUTHOR_EMAIL
+export GIT_COMMITTER_NAME="${GIT_COMMITTER_NAME:-${GIT_AUTHOR_NAME}}"
+export GIT_COMMITTER_EMAIL="${GIT_COMMITTER_EMAIL:-${GIT_AUTHOR_EMAIL}}"
+
+git config --global user.name "${GIT_AUTHOR_NAME}"
+git config --global user.email "${GIT_AUTHOR_EMAIL}"
 git config --global init.defaultBranch master
 
 # The PVC is owned by uid 1000 via fsGroup, but git still refuses a repo whose
