@@ -65,6 +65,18 @@ template:
         image: ghcr.io/actions/actions-runner:2.337.0
         command: ["/home/runner/run.sh"]
         env:
+          # containerMode.type: kubernetes makes the chart default this to
+          # "true", which forbids any job that does not declare a `container:`
+          # — the job fails at "Set up job" with "Jobs without a job container
+          # are forbidden on this runner". Only build-claude-agent.yaml has
+          # one; validate-manifests.yaml and talos-upgrade.yaml run their steps
+          # directly on the runner, as they did before Kubernetes mode existed.
+          #
+          # Setting it here is what keeps both styles working: the chart only
+          # injects its own "true" when this name is absent from the env list,
+          # so declaring it suppresses that rather than colliding with it.
+          - name: ACTIONS_RUNNER_REQUIRE_JOB_CONTAINER
+            value: "false"
           - name: TF_TOKEN_app_terraform_io
             valueFrom:
               secretKeyRef:

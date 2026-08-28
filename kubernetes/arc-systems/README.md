@@ -278,3 +278,27 @@ alive — poll for the pod rather than trying to fetch it afterwards:
 while ! kubectl -n arc-runners get pods -o name | head -1 | grep .; do sleep 2; done
 kubectl -n arc-runners logs -l actions.github.com/scale-set-name=arc-runners --tail=200
 ```
+
+## Kubernetes mode forbids container-less jobs by default
+
+`containerMode.type: kubernetes` exists for one workflow — the Kaniko build in
+`build-claude-agent.yaml`, which needs its `container:` to run as its own pod.
+But the chart's default also makes a `container:` *mandatory* for every job, so
+turning it on retroactively broke `validate-manifests.yaml` and
+`talos-upgrade.yaml`, which have always run their steps on the runner directly:
+
+```
+##[error]Jobs without a job container are forbidden on this runner,
+please add a 'container:' to your job
+```
+
+`ACTIONS_RUNNER_REQUIRE_JOB_CONTAINER: "false"` in the runner's env restores
+the mixed arrangement. The chart only injects its own `"true"` when that name is
+absent from the env list, so setting it suppresses the default rather than
+producing a duplicate — see `_helpers.tpl` in `gha-runner-scale-set`.
+
+Worth knowing that this failure and the `fsGroup` one above are both delayed
+consequences of enabling Kubernetes mode, and neither appears until Flux
+reconciles the HelmRelease. A workflow run triggered by the merge itself will
+still use the old runner template and can pass, which makes the breakage look
+unrelated to the change that caused it.
