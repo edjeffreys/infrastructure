@@ -16,7 +16,7 @@ set -e
 # Current set: i915, intel-ucode, iscsi-tools, util-linux-tools, nfs-utils,
 # qemu-guest-agent, tailscale.
 SCHEMATIC="bb2bf97151447e3e0b8e3b0726805f1050a59e4e780b366211ba71bc19c07a7c"
-IMAGE="factory.talos.dev/metal-installer/${SCHEMATIC}:v1.13.2"
+IMAGE="factory.talos.dev/metal-installer/${SCHEMATIC}:v1.13.9"
 
 NODES=(
   "10.11.0.10:talos-worker-0"
