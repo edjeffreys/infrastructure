@@ -9,9 +9,6 @@ resources:
   - namespace.yaml
   - network-policy.yaml
   - github-app-secret.yaml
-  - node-manager-rbac.yaml
-  - packer-proxmox-vars-secret.yaml
-  - runner-tokens-secret.yaml
 
 configMapGenerator:
   # Replaces ArgoCD's `$values/` git ref, which has no Flux equivalent. The
