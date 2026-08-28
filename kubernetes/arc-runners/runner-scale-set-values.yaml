@@ -66,19 +66,10 @@ template:
           # than duplicates.
           - name: ACTIONS_RUNNER_REQUIRE_JOB_CONTAINER
             value: "false"
-          - name: TF_TOKEN_app_terraform_io
-            valueFrom:
-              secretKeyRef:
-                name: runner-tokens
-                key: terraform_cloud_token
-          - name: TAILSCALE_API_TOKEN
-            valueFrom:
-              secretKeyRef:
-                name: runner-tokens
-                key: tailscale_api_token
-        envFrom:
-          - secretRef:
-              name: packer-proxmox-vars
+        # No credentials here. A values-file injection is not a GitHub secret:
+        # Kubernetes supplies it to every job, including fork pull requests that
+        # GitHub would withhold Actions secrets from. Prefer a scoped Actions
+        # secret; use this only for something that must be ambient.
         resources:
           requests:
             memory: 512Mi

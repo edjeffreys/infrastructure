@@ -7,8 +7,65 @@ Actions Runner Controller, in two namespaces:
 | `arc-systems` | `gha-runner-scale-set-controller` | The controller, and the **listener** pod for each scale set |
 | `arc-runners` | `gha-runner-scale-set` | The `AutoscalingRunnerSet` and the ephemeral runner pods |
 
-Both are ArgoCD apps (`argocd/apps/arc-systems.yaml`, `argocd/apps/arc-runners.yaml`)
-using OCI charts from `ghcr.io/actions/actions-runner-controller-charts/`.
+Both are Flux Kustomizations (`flux/apps/arc-systems.yaml`,
+`flux/apps/arc-runners.yaml`) using OCI charts from
+`ghcr.io/actions/actions-runner-controller-charts/`.
+
+## Nobody outside the allowlist may trigger a workflow
+
+This repository is public and the runners are self-hosted, which is the
+combination GitHub's own documentation recommends against. A workflow triggered
+by `pull_request` checks out the fork's head and runs code from it —
+`validate-manifests.yaml` executes `scripts/check-flux-refs.py` from the PR
+branch — so a stranger being able to start a run means a stranger executing code
+inside the cluster, on a pod that has `world` egress, kube-apiserver access, and
+create-on-pods via `containerMode: kubernetes` (a `hostPath` job pod from there
+reaches the node, and the rest of the cluster follows).
+
+Nothing in this repository can prevent that. Two repository settings do, and
+**neither is visible from the code**, so check both before assuming CI is safe:
+
+| Setting | Where | State |
+|---|---|---|
+| **Restrict actors** | Settings > Actions > Policies | Allowlist: `edjeffreys`, `Renovate`, `dependabot[bot]` |
+| Fork PR approval | Settings > Actions > General | Require approval for all outside collaborators |
+
+The actor allowlist is the one doing the real work, and it is the stronger of
+the two by construction: it is deny-by-default, so an outsider is not gated
+behind a maintainer's judgement on a diff — they simply cannot start a run at
+all. The fork-approval radio is kept as a backstop because the Policies page is
+still a **Preview** feature, and a preview can change behaviour or be withdrawn
+with no migration. Do not collapse them into one.
+
+**Adding an automation means adding it to the allowlist.** Renovate and
+dependabot are listed because they open pull requests and would otherwise have
+their runs silently refused — a bot whose PRs never get a CI verdict, with
+nothing explaining why. Anything new that opens PRs needs the same entry.
+
+Treat relaxing either setting as a cluster-level change, because it is one. The
+pool holds no credentials any more (below), which limits what a mistake costs,
+but it still has the network position and the pod-create permission. If fork
+runs are ever genuinely wanted, the answer is a second scale set for them — no
+credentials, no `containerMode`, no kube-apiserver, and an FQDN egress
+allowlist — rather than loosening this one.
+
+## The credentials that used to ride on every runner
+
+`runner-scale-set-values.yaml` injected a Terraform Cloud token, a Tailscale API
+key and the Packer Proxmox variables into every runner pod. All three were
+vestigial: nothing under `.github/workflows/` had referenced them since the
+`packer-*` and `replace-*-node` workflows were deleted before this repo was
+recreated. They are gone, along with the `allow-proxmox-egress` policy that
+served the same workflows and `node-manager-rbac.yaml`, which granted
+`nodes: delete` cluster-wide to `arc-runner-set-gha-rs-no-permission` — a
+ServiceAccount that never existed, since the release is named `arc-runners`.
+
+The general shape is worth remembering: **a Kubernetes-injected env var is not a
+GitHub secret.** GitHub withholds Actions secrets from fork pull requests, but
+anything in the runner pod spec is put there by Kubernetes and is present for
+every job regardless. When a workflow is retired, check what its credentials
+were riding on — a GitHub secret decays harmlessly, a values-file injection does
+not.
 
 ## The runner label is the Helm release name
 
