@@ -18,7 +18,7 @@ plus `claude-agent-cluster-read` for cluster-scoped resources. No `create`,
 `update`, `delete`, `patch` or `pods/exec` anywhere.
 
 **Git: PR-write.** This is where the agent actually changes things. Everything
-here deploys through ArgoCD, so the agent doesn't need mutating kube verbs to
+here deploys through Flux, so the agent doesn't need mutating kube verbs to
 change the cluster — it edits the repo and opens a PR, and you merge from your
 phone. That merge is the only path from "agent decided something" to "cluster
 changed".
@@ -66,27 +66,18 @@ if you haven't.
 
 ### 2. Build and push the image
 
-Built by hand, not in CI: the ARC runners have no Docker daemon
-(`containerMode` is unset), and giving them one means a privileged dind sidecar
-and `pod-security enforce: privileged` on `arc-runners` — too much to trade for
-one image.
+Built in CI: `.github/workflows/build-claude-agent.yaml` runs on a push to
+`master` that touches `images/claude-agent/**`, or on demand
+(`workflow_dispatch`) — including when Renovate bumps the `ARG` pins in the
+Dockerfile and merges. It runs as a Kubernetes-mode ARC job pod using Kaniko,
+which builds daemonless, so this still needs no Docker daemon in the runner
+pod and no privileged dind sidecar — see `containerMode` in
+`kubernetes/arc-runners/runner-scale-set-values.yaml`. It pushes both
+`:latest` and a `:sha-<short-sha>` tag, authenticated with the workflow's own
+`GITHUB_TOKEN` (scoped to this repo, unlike the classic PAT the steps below
+need).
 
-**The cluster is amd64 and your Mac is arm64, so `--platform` is mandatory.**
-Omit it and the pod crashloops with `exec format error`.
-
-Auth first. This needs a **classic** PAT with `write:packages` — fine-grained
-PATs cannot publish user-owned ghcr packages, so the agent's own `GH_TOKEN`
-will not work here. It is local-only and is never stored in the cluster.
-
-```bash
-docker login ghcr.io -u edjeffreys
-```
-
-```bash
-docker buildx build --platform linux/amd64 --push -t ghcr.io/edjeffreys/claude-agent:latest images/claude-agent
-```
-
-Then **make the package public** at
+The package must still be made public once, by hand, at
 <https://github.com/users/edjeffreys/packages/container/claude-agent/settings>.
 The image holds no credentials — tokens arrive as env vars at runtime — and a
 public package avoids an imagePullSecret here. That secret would have to be a
@@ -94,16 +85,29 @@ hand-applied `op inject` bootstrap file: `imagePullSecrets` requires type
 `kubernetes.io/dockerconfigjson`, and `OnePasswordItem` only ever produces
 `Opaque`.
 
-Rebuilds are manual, including when Renovate bumps the `ARG` pins in the
-Dockerfile. Re-run the build above, then:
+CI does not touch the cluster (the ARC runner ServiceAccount has no
+`patch`/`update` on Deployments), so a new push still needs a manual restart to
+actually roll out:
 
 ```bash
 kubectl -n claude-agent rollout restart deploy/claude-agent
 ```
 
+**Local/manual build (break-glass, e.g. testing a Dockerfile change before
+pushing).** The cluster is amd64; if you're on arm64, `--platform` is
+mandatory or the pod crashloops with `exec format error`. This needs a
+**classic** PAT with `write:packages` — fine-grained PATs cannot publish
+user-owned ghcr packages. It is local-only and is never stored in the cluster.
+
+```bash
+docker login ghcr.io -u edjeffreys
+docker buildx build --platform linux/amd64 --push -t ghcr.io/edjeffreys/claude-agent:latest images/claude-agent
+```
+
 ### 3. Deploy
 
-Merge to `master`; ArgoCD picks up `argocd/apps/claude-agent.yaml`.
+Merge to `master`; Flux's `claude-agent` Kustomization
+(`flux/apps/claude-agent.yaml`) picks up `kubernetes/claude-agent/`.
 
 ### 4. Verify the boundary holds
 
@@ -158,7 +162,7 @@ kubectl -n claude-agent exec deploy/claude-agent -- sh -c 'ls -l /proc/7/fd | gr
 - **`Recreate` strategy, not `RollingUpdate`.** RWO Longhorn volume, and two
   sessions registering the same Remote Control name at once is not a state
   worth discovering.
-- **Prompt injection is the real risk here.** The agent reads pod logs, ArgoCD
+- **Prompt injection is the real risk here.** The agent reads pod logs, Flux
   status and GitHub issues — all attacker-influenceable text reaching something
   that holds a GitHub token. Read-only RBAC caps the blast radius; the human
   merge gate on every PR is the actual mitigation. Don't remove it.
