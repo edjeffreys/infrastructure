@@ -248,31 +248,25 @@ kubectl -n onepassword-operator rollout restart deploy/onepassword-connect-opera
 kubectl -n arc-systems rollout restart deploy/arc-systems-gha-rs-controller
 ```
 
-## Jobs fail in seconds with no steps and no logs
+## Kubernetes mode broke everything except the Kaniko build
 
-A different failure from the one above: the runner pod *does* start, then the
-job goes red about a second later. `gh run view --log-failed` prints nothing and
-the job has an empty `steps` array, because the worker crashes before the first
-step exists to log against. It looks like a registration or credentials fault
-and is neither.
+`containerMode.type: kubernetes` was added for `build-claude-agent.yaml` alone
+and took three passes to settle. Each failure only appeared once the previous
+was fixed, and none until Flux reconciled the HelmRelease — the run triggered by
+the merge itself uses the old runner template and passes, so the breakage looks
+unrelated to the change that caused it.
 
-The cause is ownership of the Kubernetes-mode work volume. `containerMode.type:
-kubernetes` mounts a PVC at `/home/runner/_work`, and a freshly provisioned
-block volume (`longhorn`) arrives owned by root while the runner process is uid
-1001 — so it cannot create `_work/_tool`:
+| Symptom | Cause | Fix |
+|---|---|---|
+| `mount.nfs: access denied` | work volume on `nfs` | `storageClassName: longhorn` |
+| job fails in ~1s, no steps, no logs | volume root-owned, runner is uid 1001 | `securityContext.fsGroup: 1001` |
+| `Jobs without a job container are forbidden` | Kubernetes mode makes `container:` mandatory | `ACTIONS_RUNNER_REQUIRE_JOB_CONTAINER: "false"` |
 
-```
-System.UnauthorizedAccessException: Access to the path '/home/runner/_work/_tool' is denied.
-```
-
-The fix is `template.spec.securityContext.fsGroup: 1001` in
-`runner-scale-set-values.yaml`, which makes the kubelet chown the volume at
-mount time. This is only needed for volume types that honour `fsGroup`, and was
-invisible while the work volume was on `nfs`, where the TrueNAS export squashed
-ownership server-side.
-
-The runner pod is deleted as soon as the job ends, so catch the log while it is
-alive — poll for the pod rather than trying to fetch it afterwards:
+The middle one is the nastiest to diagnose: the worker dies before the first
+step exists to log against, so `gh run view --log-failed` prints nothing and it
+reads as a credentials fault. Only the runner pod says
+`UnauthorizedAccessException ... '/home/runner/_work/_tool'`, and the pod is
+deleted when the job ends — so catch it live:
 
 ```bash
 while ! kubectl -n arc-runners get pods -o name | head -1 | grep .; do sleep 2; done
