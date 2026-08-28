@@ -1,0 +1,32 @@
+# No kustomization.yaml under this path: there is no `-values.yaml` to keep out
+# of autodetect, so every file there is already a valid manifest. Same as
+# cert-manager. No `namespace:` is set anywhere either — all three manifests
+# carry an explicit `metadata.namespace: kube-system` of their own, which is
+# what replaces ArgoCD's `destination.namespace`. (`targetNamespace` would have
+# been wrong: it overrides rather than fills in blanks.)
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: kube-system
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./kubernetes/kube-system
+  # Carried over from the ArgoCD Application's `prune: false`, and load-bearing
+  # rather than inherited caution. kubernetes/kube-system/coredns.yaml is a
+  # *partial* Deployment — no selector, no containers, no image — that
+  # server-side apply merges into the CoreDNS Deployment Talos installs and
+  # owns. Flux's inventory would list it as a Deployment it created, so with
+  # prune: true, removing that file (or this Kustomization, under the default
+  # deletionPolicy) would delete cluster DNS outright rather than just dropping
+  # the patch.
+  prune: false
+  wait: true
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: infrastructure
+  # The Application set `ServerSideApply=true` for that partial-Deployment merge.
+  # No Flux equivalent is needed: Flux always applies server-side, and takes
+  # field ownership from the previous manager the same way it did for every
+  # Helm app in waves 8-12.

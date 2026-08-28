@@ -1,0 +1,82 @@
+ipam:
+  mode: kubernetes
+
+# Talos does not run kube-proxy — Cilium replaces it entirely
+kubeProxyReplacement: true
+k8sServiceHost: 10.0.0.200
+k8sServicePort: 6443
+
+# Required capabilities for Talos (stripped-down OS, no default privileges)
+securityContext:
+  capabilities:
+    ciliumAgent:
+      - CHOWN
+      - KILL
+      - NET_ADMIN
+      - NET_RAW
+      - IPC_LOCK
+      - SYS_ADMIN
+      - SYS_RESOURCE
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    cleanCiliumState:
+      - NET_ADMIN
+      - SYS_ADMIN
+      - SYS_RESOURCE
+
+# Talos mounts cgroupv2 itself — Cilium must not try to auto-mount it
+cgroup:
+  autoMount:
+    enabled: false
+  hostRoot: /sys/fs/cgroup
+
+# Same MTU issue as K3s: tailscale0 on nodes has MTU 1280, which Cilium
+# would auto-detect and apply to all pods. Pin to 1450 explicitly.
+MTU: 1450
+
+routingMode: tunnel
+tunnelProtocol: vxlan
+
+# Talos 1.13 uses nf_tables kernel backend; Cilium's legacy iptables
+# masquerade is incompatible. BPF masquerade avoids iptables entirely.
+bpf:
+  masquerade: true
+
+# Disable standalone envoy DaemonSet — use embedded envoy in cilium-agent.
+# External envoy gets a pod-CIDR virtual IP whose BPF identity resolution
+# is broken on Talos 1.13's Clang-compiled kernel (identity=world instead
+# of host). Embedded mode avoids the virtual IP entirely.
+envoy:
+  enabled: false
+
+operator:
+  replicas: 1
+  prometheus:
+    enabled: true
+    port: 9963
+    serveAddr: "0.0.0.0:9963"
+
+prometheus:
+  enabled: true
+  port: 9962
+
+hubble:
+  enabled: true
+  relay:
+    enabled: true
+  ui:
+    enabled: true
+  metrics:
+    enabled:
+      - dns:sourceContext=workload-name;destinationContext=workload-name
+      - drop:sourceContext=workload-name;destinationContext=workload-name
+      - tcp:sourceContext=workload-name;destinationContext=workload-name
+      - flow:sourceContext=workload-name;destinationContext=workload-name
+      - port-distribution:sourceContext=workload-name;destinationContext=workload-name
+      - icmp:sourceContext=workload-name;destinationContext=workload-name
+      - http:sourceContext=workload-name;destinationContext=workload-name
+
+l2announcements:
+  enabled: true

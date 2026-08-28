@@ -1,0 +1,41 @@
+---
+# The catch-all. Every endpoint outside the four excluded namespaces is
+# deny-by-default in both directions unless some other policy allows the
+# traffic.
+#
+# Applying this changed nothing for any workload running at the time — all 129
+# live pods were already deny-by-default in both directions, verified with
+# `scripts/check-policy-coverage.py`. Ingress was already covered cluster-wide
+# by allow-kubelet-probes and allow-proxy-identity, which select every pod
+# outside the exclusions; egress was covered because every namespace ships at
+# least an allow-dns.
+#
+# So this is not a tightening of the current cluster. It is the safety net for
+# the *next* namespace: one added without a CiliumNetworkPolicy is unrestricted
+# until this exists, and silently so.
+#
+# The exclusions are load-bearing. kube-system holds CoreDNS, the Cilium agent
+# and every other component the allow rules themselves depend on; kube-public
+# and kube-node-lease carry no workloads; cilium-secrets is Cilium's own.
+#
+# Pairs with allow-health-checks.yaml — read the comment there before changing
+# either. The Cilium health endpoint has no namespace label, so the NotIn
+# expression below selects it too.
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: default-deny
+spec:
+  endpointSelector:
+    matchExpressions:
+      - key: "k8s:io.kubernetes.pod.namespace"
+        operator: NotIn
+        values:
+          - kube-system
+          - kube-public
+          - kube-node-lease
+          - cilium-secrets
+  ingress:
+    - {}
+  egress:
+    - {}

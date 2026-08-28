@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: sonarr
+  namespace: arr
+  annotations:
+    tailscale.com/hostname: "sonarr"
+    tailscale.com/proxy-class: "standard"
+spec:
+  ingressClassName: tailscale
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: sonarr
+                port:
+                  number: 8989
+  tls:
+    - hosts:
+        - sonarr

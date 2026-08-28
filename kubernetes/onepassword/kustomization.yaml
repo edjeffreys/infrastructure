@@ -1,0 +1,41 @@
+# Explicit resources list, not autodetect. It keeps out the two Helm values
+# files (no apiVersion/kind — autodetect fails the whole build on them with
+# "missing Resource metadata") and three more files ArgoCD also excluded:
+#
+#   1password-token-secret.yaml   a bootstrap Secret holding `op://` references,
+#                                 applied by hand through `op inject`. Applying
+#                                 it from git would store the literal string
+#                                 `op://Secrets/...` as the token.
+#   example-onepassword-item.yaml documentation, not a resource to create.
+#   install.sh                    not a manifest at all.
+#
+# This is the Flux equivalent of ArgoCD's
+# `directory.exclude: "{*-values.yaml,install.sh,example-*.yaml,1password-token-secret.yaml}"`.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: onepassword-operator
+resources:
+  - namespace.yaml
+  - network-policy.yaml
+  - 1password-secret.yaml
+
+configMapGenerator:
+  # Replaces ArgoCD's `$values/` git ref, which has no Flux equivalent. Both
+  # values files stay exactly where they were — Renovate's regexManager and
+  # kubeconform's ignore pattern both key off the `-values.yaml` suffix.
+  # Prefixed with the app name because these ConfigMaps share a namespace with
+  # the workload rather than sitting in flux-system.
+  - name: onepassword-operator-values
+    files:
+      - values.yaml=operator-values.yaml
+    options:
+      disableNameSuffixHash: true
+      labels:
+        reconcile.fluxcd.io/watch: Enabled
+  - name: onepassword-secrets-injector-values
+    files:
+      - values.yaml=secrets-injector-values.yaml
+    options:
+      disableNameSuffixHash: true
+      labels:
+        reconcile.fluxcd.io/watch: Enabled

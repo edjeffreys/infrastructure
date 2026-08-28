@@ -1,0 +1,49 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: metrics-server
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: https://kubernetes-sigs.github.io/metrics-server/
+
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: metrics-server
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./kubernetes/metrics-server
+  prune: true
+  wait: true
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: infrastructure
+
+---
+# Runs in kube-system deliberately: that namespace is excluded from the
+# default-deny CiliumClusterwideNetworkPolicy, so metrics-server needs no
+# network policy of its own to reach kubelets on port 10250 across every node,
+# including the tainted PIA nodes.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: metrics-server
+  namespace: kube-system
+spec:
+  interval: 30m
+  releaseName: metrics-server
+  chart:
+    spec:
+      chart: metrics-server
+      version: "3.14.0"
+      sourceRef:
+        kind: HelmRepository
+        name: metrics-server
+        namespace: flux-system
+  valuesFrom:
+    - kind: ConfigMap
+      name: metrics-server-values

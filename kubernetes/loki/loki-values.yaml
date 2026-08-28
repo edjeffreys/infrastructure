@@ -1,0 +1,63 @@
+deploymentMode: SingleBinary
+
+loki:
+  auth_enabled: false
+  commonConfig:
+    replication_factor: 1
+  storage:
+    type: filesystem
+  schemaConfig:
+    configs:
+      - from: "2024-01-01"
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: loki_index_
+          period: 24h
+  analytics:
+    reporting_enabled: false
+  limits_config:
+    retention_period: 30d
+  compactor:
+    retention_enabled: true
+    working_directory: /var/loki/compactor
+    delete_request_store: filesystem
+
+singleBinary:
+  replicas: 1
+  nodeSelector:
+    node-type: standard
+  persistence:
+    enabled: true
+    storageClassName: nfs
+    size: 50Gi
+
+# Disable distributed components not needed in singleBinary mode
+backend:
+  replicas: 0
+read:
+  replicas: 0
+write:
+  replicas: 0
+
+# Disable gateway (direct push/query via loki service)
+gateway:
+  enabled: false
+
+# Disable minio (using NFS)
+minio:
+  enabled: false
+
+chunksCache:
+  enabled: false
+
+promtail:
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      effect: NoExecute
+
+resultsCache:
+  enabled: false
+  replicas: 0
+

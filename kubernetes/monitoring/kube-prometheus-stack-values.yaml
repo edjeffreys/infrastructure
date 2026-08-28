@@ -1,0 +1,452 @@
+# kube-prometheus-stack Helm values
+# Managed by Flux — see flux/apps/monitoring.yaml
+
+# Disable the kube-apiserver SLO recording/alerting rules. Their burnrate (3d) and
+# availability (30d) recording rules scan huge ranges and time out on this small
+# cluster ("context deadline exceeded"), firing PrometheusRuleFailures. The
+# multi-window apiserver SLO alerts are noise for a single-node homelab anyway.
+defaultRules:
+  rules:
+    kubeApiserverAvailability: false
+    kubeApiserverBurnrate: false
+    kubeApiserverHistogram: false
+    kubeApiserverSlos: false
+
+# Disable components that don't work as standalone scrape targets in K3s
+# (scheduler, controller-manager, etcd run inside the k3s process; kube-proxy replaced by Cilium)
+kubeProxy:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeControllerManager:
+  enabled: false
+kubeEtcd:
+  enabled: false
+
+# The apiserver job is by far the largest contributor to TSDB size: 87,716 of
+# 243,068 series (36%) as measured on 2026-08-27, almost all of it histogram
+# buckets. That mattered because Prometheus mmaps its TSDB, and on talos-worker-2
+# the 7.4GB block set is several times the page cache the node can spare — which
+# is what fired NodeMemoryMajorPagesFaults at ~700 faults/sec.
+#
+# These buckets have no consumers here. The rules that would have read them —
+# kubeApiserverHistogram, kubeApiserverBurnrate, kubeApiserverSlos — are already
+# disabled above because they timed out on this cluster. So the series were being
+# stored, compacted and paged in to serve nothing.
+#
+# Only `_bucket` is dropped, deliberately. The matching `_count` and `_sum`
+# survive, so request rates, error rates and average latency all still work; what
+# goes away is quantiles and latency heatmaps.
+#
+# etcd_* arrives here rather than from the kubeEtcd job (disabled above) — the
+# apiserver exports its own etcd client metrics on /metrics, so this is the only
+# place it can be dropped.
+kubeApiServer:
+  serviceMonitor:
+    metricRelabelings:
+      - action: drop
+        sourceLabels: [__name__]
+        regex: (apiserver_request_duration_seconds|apiserver_request_sli_duration_seconds|apiserver_request_slo_duration_seconds|apiserver_response_sizes|apiserver_request_body_size_bytes|apiserver_response_body_size_bytes|apiserver_watch_list_duration_seconds|apiserver_watch_cache_read_wait_seconds|apiserver_watch_events_sizes|etcd_request_duration_seconds|etcd_request_size_bytes|etcd_response_size_bytes|workqueue_queue_duration_seconds|workqueue_work_duration_seconds|rest_client_request_duration_seconds|rest_client_response_size_bytes|rest_client_request_size_bytes)_bucket
+
+prometheusOperator:
+  nodeSelector:
+    node-type: standard
+
+prometheus:
+  prometheusSpec:
+    nodeSelector:
+      node-type: standard
+    retention: 7d
+    retentionSize: 8GB
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: longhorn
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 20Gi
+    resources:
+      requests:
+        memory: 512Mi
+        cpu: 250m
+      limits:
+        memory: 2Gi
+        cpu: 1000m
+    # Scrape ServiceMonitors and PodMonitors from all namespaces without label restrictions
+    serviceMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorNamespaceSelector: {}
+    serviceMonitorSelector: {}
+    podMonitorSelectorNilUsesHelmValues: false
+    podMonitorNamespaceSelector: {}
+    podMonitorSelector: {}
+    ruleNamespaceSelector: {}
+
+alertmanager:
+  alertmanagerSpec:
+    externalUrl: https://alertmanager.tail5f17e.ts.net
+    nodeSelector:
+      node-type: standard
+    alertmanagerConfigSelector:
+      matchLabels:
+        alertmanagerConfig: homelab
+    alertmanagerConfigNamespaceSelector: {}
+    alertmanagerConfigMatcherStrategy:
+      type: None
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: longhorn
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 2Gi
+
+grafana:
+  grafana.ini:
+    analytics:
+      reporting_enabled: false
+      check_for_updates: false
+  nodeSelector:
+    node-type: standard
+  # Recreate, not the chart's default RollingUpdate. With one replica and a
+  # ReadWriteOnce volume, a rolling update deadlocks permanently: the new pod
+  # cannot attach the volume ("Multi-Attach error") because the old pod still
+  # holds it, and the old pod is never terminated because the new one never
+  # becomes Ready. Both ReplicaSets then sit there indefinitely — deleting the
+  # old pod does not help, the old ReplicaSet just recreates it and wins the
+  # race for the volume again.
+  #
+  # Every workload defined in this repo already uses Recreate; Grafana is the
+  # exception only because it comes from the chart.
+  deploymentStrategy:
+    type: Recreate
+  persistence:
+    enabled: true
+    storageClassName: longhorn
+    accessModes:
+      - ReadWriteOnce
+    size: 5Gi
+  # Secret created via OnePasswordItem — see grafana-secret.yaml
+  admin:
+    existingSecret: grafana-admin
+    userKey: username
+    passwordKey: password
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      url: http://loki.loki.svc.cluster.local:3100
+      access: proxy
+      isDefault: false
+
+# node-exporter runs as a DaemonSet on all nodes — tolerate PIA and control-plane taints
+prometheus-node-exporter:
+  extraArgs:
+    - --no-collector.kernel_hung
+  tolerations:
+    - key: node-type
+      operator: Equal
+      value: pia
+    - key: node-role.kubernetes.io/control-plane
+      effect: NoExecute
+
+kube-state-metrics:
+  nodeSelector:
+    node-type: standard
+  # Was BestEffort QoS (no requests/limits) — first to be killed under node memory
+  # pressure. Give it a guaranteed floor so it stops getting evicted/restarted.
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      memory: 192Mi
+
+  # Flux resource metrics. Adapted from fluxcd/flux2-monitoring-example; the
+  # `gotk_resource_info` series these produce are what the Flux Grafana
+  # dashboards and the FluxResourceNotReady alert read.
+  #
+  # Upstream's version also sets `collectors: []` and
+  # `--custom-resource-state-only=true`, because it runs a *second*
+  # kube-state-metrics dedicated to Flux. Both are deliberately omitted here —
+  # this is the cluster's only kube-state-metrics, and either one would switch
+  # off every kube_pod_*/kube_deployment_* series the rest of the monitoring
+  # stack is built on.
+  #
+  # kube-state-metrics builds its informers at startup and does not notice a
+  # CRD that appears later (kubernetes/kube-state-metrics#2296). It does not
+  # crash — it just exports nothing — so this is safe to apply before Flux is
+  # installed, but kube-state-metrics must be restarted once the Flux CRDs
+  # exist. See kubernetes/flux-system/README.md.
+  rbac:
+    extraRules:
+      - apiGroups:
+          - source.toolkit.fluxcd.io
+          - kustomize.toolkit.fluxcd.io
+          - helm.toolkit.fluxcd.io
+          - notification.toolkit.fluxcd.io
+          - image.toolkit.fluxcd.io
+        resources:
+          - gitrepositories
+          - buckets
+          - helmrepositories
+          - helmcharts
+          - ocirepositories
+          - kustomizations
+          - helmreleases
+          - alerts
+          - providers
+          - receivers
+          - imagerepositories
+          - imagepolicies
+          - imageupdateautomations
+        verbs: [ "list", "watch" ]
+  customResourceState:
+    enabled: true
+    config:
+      spec:
+        resources:
+          - groupVersionKind:
+              group: kustomize.toolkit.fluxcd.io
+              version: v1
+              kind: Kustomization
+            metricNamePrefix: gotk
+            metrics:
+              - name: "resource_info"
+                help: "The current state of a Flux Kustomization resource."
+                each:
+                  type: Info
+                  info:
+                    labelsFromPath:
+                      name: [ metadata, name ]
+                labelsFromPath:
+                  exported_namespace: [ metadata, namespace ]
+                  ready: [ status, conditions, "[type=Ready]", status ]
+                  suspended: [ spec, suspend ]
+                  revision: [ status, lastAppliedRevision ]
+                  source_name: [ spec, sourceRef, name ]
+          - groupVersionKind:
+              group: helm.toolkit.fluxcd.io
+              version: v2
+              kind: HelmRelease
+            metricNamePrefix: gotk
+            metrics:
+              - name: "resource_info"
+                help: "The current state of a Flux HelmRelease resource."
+                each:
+                  type: Info
+                  info:
+                    labelsFromPath:
+                      name: [ metadata, name ]
+                labelsFromPath:
+                  exported_namespace: [ metadata, namespace ]
+                  ready: [ status, conditions, "[type=Ready]", status ]
+                  suspended: [ spec, suspend ]
+                  revision: [ status, history, "0", chartVersion ]
+                  chart_name: [ status, history, "0", chartName ]
+                  chart_app_version: [ status, history, "0", appVersion ]
+                  chart_ref_name: [ spec, chartRef, name ]
+                  chart_source_name: [ spec, chart, spec, sourceRef, name ]
+          - groupVersionKind:
+              group: source.toolkit.fluxcd.io
+              version: v1
+              kind: GitRepository
+            metricNamePrefix: gotk
+            metrics:
+              - name: "resource_info"
+                help: "The current state of a Flux GitRepository resource."
+                each:
+                  type: Info
+                  info:
+                    labelsFromPath:
+                      name: [ metadata, name ]
+                labelsFromPath:
+                  exported_namespace: [ metadata, namespace ]
+                  ready: [ status, conditions, "[type=Ready]", status ]
+                  suspended: [ spec, suspend ]
+                  revision: [ status, artifact, revision ]
+                  url: [ spec, url ]
+          - groupVersionKind:
+              group: source.toolkit.fluxcd.io
+              version: v1
+              kind: Bucket
+            metricNamePrefix: gotk
+            metrics:
+              - name: "resource_info"
+                help: "The current state of a Flux Bucket resource."
+                each:
+                  type: Info
+                  info:
+                    labelsFromPath:
+                      name: [ metadata, name ]
+                labelsFromPath:
+                  exported_namespace: [ metadata, namespace ]
+                  ready: [ status, conditions, "[type=Ready]", status ]
+                  suspended: [ spec, suspend ]
+                  revision: [ status, artifact, revision ]
+                  endpoint: [ spec, endpoint ]
+                  bucket_name: [ spec, bucketName ]
+          - groupVersionKind:
+              group: source.toolkit.fluxcd.io
+              version: v1
+              kind: HelmRepository
+            metricNamePrefix: gotk
+            metrics:
+              - name: "resource_info"
+                help: "The current state of a Flux HelmRepository resource."
+                each:
+                  type: Info
+                  info:
+                    labelsFromPath:
+                      name: [ metadata, name ]
+                labelsFromPath:
+                  exported_namespace: [ metadata, namespace ]
+                  ready: [ status, conditions, "[type=Ready]", status ]
+                  suspended: [ spec, suspend ]
+                  revision: [ status, artifact, revision ]
+                  url: [ spec, url ]
+          - groupVersionKind:
+              group: source.toolkit.fluxcd.io
+              version: v1
+              kind: HelmChart
+            metricNamePrefix: gotk
+            metrics:
+              - name: "resource_info"
+                help: "The current state of a Flux HelmChart resource."
+                each:
+                  type: Info
+                  info:
+                    labelsFromPath:
+                      name: [ metadata, name ]
+                labelsFromPath:
+                  exported_namespace: [ metadata, namespace ]
+                  ready: [ status, conditions, "[type=Ready]", status ]
+                  suspended: [ spec, suspend ]
+                  revision: [ status, artifact, revision ]
+                  chart_name: [ spec, chart ]
+                  chart_version: [ spec, version ]
+          - groupVersionKind:
+              group: source.toolkit.fluxcd.io
+              version: v1
+              kind: OCIRepository
+            metricNamePrefix: gotk
+            metrics:
+              - name: "resource_info"
+                help: "The current state of a Flux OCIRepository resource."
+                each:
+                  type: Info
+                  info:
+                    labelsFromPath:
+                      name: [ metadata, name ]
+                labelsFromPath:
+                  exported_namespace: [ metadata, namespace ]
+                  ready: [ status, conditions, "[type=Ready]", status ]
+                  suspended: [ spec, suspend ]
+                  revision: [ status, artifact, revision ]
+                  url: [ spec, url ]
+          - groupVersionKind:
+              group: notification.toolkit.fluxcd.io
+              version: v1beta3
+              kind: Alert
+            metricNamePrefix: gotk
+            metrics:
+              - name: "resource_info"
+                help: "The current state of a Flux Alert resource."
+                each:
+                  type: Info
+                  info:
+                    labelsFromPath:
+                      name: [ metadata, name ]
+                labelsFromPath:
+                  exported_namespace: [ metadata, namespace ]
+                  suspended: [ spec, suspend ]
+          - groupVersionKind:
+              group: notification.toolkit.fluxcd.io
+              version: v1beta3
+              kind: Provider
+            metricNamePrefix: gotk
+            metrics:
+              - name: "resource_info"
+                help: "The current state of a Flux Provider resource."
+                each:
+                  type: Info
+                  info:
+                    labelsFromPath:
+                      name: [ metadata, name ]
+                labelsFromPath:
+                  exported_namespace: [ metadata, namespace ]
+                  suspended: [ spec, suspend ]
+          - groupVersionKind:
+              group: notification.toolkit.fluxcd.io
+              version: v1
+              kind: Receiver
+            metricNamePrefix: gotk
+            metrics:
+              - name: "resource_info"
+                help: "The current state of a Flux Receiver resource."
+                each:
+                  type: Info
+                  info:
+                    labelsFromPath:
+                      name: [ metadata, name ]
+                labelsFromPath:
+                  exported_namespace: [ metadata, namespace ]
+                  ready: [ status, conditions, "[type=Ready]", status ]
+                  suspended: [ spec, suspend ]
+                  webhook_path: [ status, webhookPath ]
+          - groupVersionKind:
+              group: image.toolkit.fluxcd.io
+              version: v1
+              kind: ImageRepository
+            metricNamePrefix: gotk
+            metrics:
+              - name: "resource_info"
+                help: "The current state of a Flux ImageRepository resource."
+                each:
+                  type: Info
+                  info:
+                    labelsFromPath:
+                      name: [ metadata, name ]
+                labelsFromPath:
+                  exported_namespace: [ metadata, namespace ]
+                  ready: [ status, conditions, "[type=Ready]", status ]
+                  suspended: [ spec, suspend ]
+                  image: [ spec, image ]
+          - groupVersionKind:
+              group: image.toolkit.fluxcd.io
+              version: v1
+              kind: ImagePolicy
+            metricNamePrefix: gotk
+            metrics:
+              - name: "resource_info"
+                help: "The current state of a Flux ImagePolicy resource."
+                each:
+                  type: Info
+                  info:
+                    labelsFromPath:
+                      name: [ metadata, name ]
+                labelsFromPath:
+                  exported_namespace: [ metadata, namespace ]
+                  ready: [ status, conditions, "[type=Ready]", status ]
+                  suspended: [ spec, suspend ]
+                  source_name: [ spec, imageRepositoryRef, name ]
+          - groupVersionKind:
+              group: image.toolkit.fluxcd.io
+              version: v1
+              kind: ImageUpdateAutomation
+            metricNamePrefix: gotk
+            metrics:
+              - name: "resource_info"
+                help: "The current state of a Flux ImageUpdateAutomation resource."
+                each:
+                  type: Info
+                  info:
+                    labelsFromPath:
+                      name: [ metadata, name ]
+                labelsFromPath:
+                  exported_namespace: [ metadata, namespace ]
+                  ready: [ status, conditions, "[type=Ready]", status ]
+                  suspended: [ spec, suspend ]
+                  source_name: [ spec, sourceRef, name ]

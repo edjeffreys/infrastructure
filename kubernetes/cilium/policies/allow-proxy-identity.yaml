@@ -1,0 +1,23 @@
+---
+# Workaround for Cilium proxy identity bug on Talos 1.13 (Clang-compiled kernel).
+# Cilium's envoy proxy gets a pod-CIDR virtual IP that ipcache maps to identity=1
+# (host), but BPF policy enforcement resolves as identity=2 (world). Without this,
+# all proxied traffic (kubelet probes via proxy, cross-namespace flows) is denied.
+# Scoped to the same namespaces as default-deny.
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: allow-proxy-identity
+spec:
+  endpointSelector:
+    matchExpressions:
+      - key: k8s:io.kubernetes.pod.namespace
+        operator: NotIn
+        values:
+          - kube-system
+          - kube-public
+          - kube-node-lease
+          - cilium-secrets
+  ingress:
+    - fromEntities:
+        - world

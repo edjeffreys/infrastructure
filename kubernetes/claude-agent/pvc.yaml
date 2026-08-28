@@ -1,0 +1,16 @@
+---
+# Holds ~/.claude (Remote Control registration, session history, settings) and
+# the repo checkout. Losing it means re-pairing the session from scratch, so it
+# is longhorn rather than an emptyDir.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: claude-agent-home
+  namespace: claude-agent
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 10Gi

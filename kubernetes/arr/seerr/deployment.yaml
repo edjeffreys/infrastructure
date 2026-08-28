@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: seerr
+  namespace: arr
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: seerr
+  template:
+    metadata:
+      labels:
+        app: seerr
+    spec:
+      nodeSelector:
+        node-type: pia
+      tolerations:
+        - key: node-type
+          value: pia
+
+      initContainers:
+        - name: fix-permissions
+          image: busybox:1.38.0@sha256:dc2d74b28e4cf8984fa52af1f39bc7c3d9c73760b41a74d629f5d11b1ab28616
+          command: ["sh", "-c", "chown -R 1000:1000 /app/config"]
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+      containers:
+        - name: seerr
+          image: ghcr.io/seerr-team/seerr:v3.4.1@sha256:f4768de5f616248d723e05891f3345a1402123775d03bf0890dbfedc0831bda1
+          env:
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            # Postgres instead of /app/config/db/db.sqlite3. The config volume
+            # still holds settings.json, so the PVC stays.
+            - name: DB_TYPE
+              value: postgres
+            - name: DB_HOST
+              value: arr-postgres-rw
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: seerr
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: arr-postgres-app
+                  key: username
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: arr-postgres-app
+                  key: password
+          ports:
+            - containerPort: 5055
+          readinessProbe:
+            httpGet:
+              path: /api/v1/status
+              port: 5055
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: 100m
+            limits:
+              memory: 512Mi
+              cpu: 500m
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: seerr-config

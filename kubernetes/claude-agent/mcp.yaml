@@ -1,0 +1,28 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: claude-agent-mcp
+  namespace: claude-agent
+data:
+  # Passed with --mcp-config --strict-mcp-config, so this file is the complete
+  # and only set of MCP servers. Mounted read-only; the agent cannot add more.
+  mcp.json: |
+    {
+      "mcpServers": {
+        "kubernetes": {
+          "command": "kubernetes-mcp-server",
+          "args": [
+            "--cluster-provider", "in-cluster",
+            "--read-only"
+          ]
+        },
+        "github": {
+          "command": "github-mcp-server",
+          "args": ["stdio"],
+          "env": {
+            "GITHUB_PERSONAL_ACCESS_TOKEN": "${GH_TOKEN}"
+          }
+        }
+      }
+    }

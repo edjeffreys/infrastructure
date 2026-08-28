@@ -1,0 +1,36 @@
+# Explicit resources list, not autodetect: kustomize-controller treats every
+# YAML under spec.path as a manifest, and kube-prometheus-stack-values.yaml is
+# Helm values with no apiVersion/kind. Leaving it to autodetect fails the whole
+# build with "missing Resource metadata". This is the Flux equivalent of
+# ArgoCD's `directory.exclude: "*-values.yaml"`.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: monitoring
+resources:
+  - alertmanager-config.yaml
+  - alertmanager-ingress.yaml
+  - flux-dashboards.yaml
+  - flux-monitoring.yaml
+  - grafana-ingress.yaml
+  - grafana-secret.yaml
+  - namespace.yaml
+  - network-policy.yaml
+  - pushover-secret.yaml
+
+configMapGenerator:
+  # Replaces ArgoCD's `$values/` git ref, which has no Flux equivalent. The
+  # values file itself stays exactly where it was — Renovate's regexManager and
+  # kubeconform's ignore pattern both key off the `-values.yaml` suffix.
+  - name: kube-prometheus-stack-values
+    files:
+      # helm-controller reads the `values.yaml` key by default.
+      - values.yaml=kube-prometheus-stack-values.yaml
+    options:
+      # Required: a hashed name would not match the HelmRelease's valuesFrom.
+      # helm-controller checksums the ConfigMap's *content*, so a stable name
+      # still triggers an upgrade when the values change.
+      disableNameSuffixHash: true
+      labels:
+        # Without this a values change waits for the HelmRelease interval
+        # instead of upgrading on the next reconcile.
+        reconcile.fluxcd.io/watch: Enabled

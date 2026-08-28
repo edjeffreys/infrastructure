@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plex
+  namespace: plex
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: plex
+  template:
+    metadata:
+      labels:
+        app: plex
+    spec:
+      # QuickSync: the Alder Lake iGPU is passed through to talos-worker-0 only
+      # (terraform/proxmox/talos.tf hostpci0), so plex has to land there. The
+      # gpu.intel.com/i915 request below would already constrain scheduling —
+      # the selector just makes the intent explicit and the failure mode legible
+      # if the device plugin is down.
+      nodeSelector:
+        gpu: intel
+      containers:
+        - name: plex
+          # Stayed on SQLite: the cgnl/plex-postgresql shim crashes Plex on
+          # startup during the plugins query (upstream issues #10 / #17,
+          # both open). Reproduced on BOTH published image variants with a
+          # working shim and correctly migrated data — 6,059 committed
+          # transactions against Postgres before it died. Not a
+          # configuration problem at our end. See scripts/plex-postgres/.
+          image: plexinc/pms-docker:1.43.3.10861-07dfddaeb@sha256:5bc1d13f48da6366f46aaf2a3ce1a6292897eadc1f8efcbbd7321d30e94f2ed4
+          env:
+            - name: PLEX_UID
+              value: "3000"
+            - name: PLEX_GID
+              value: "3000"
+            - name: TZ
+              value: "Etc/UTC"
+            - name: VERSION
+              value: "docker"
+            # iHD is the modern VA-API driver; i965 is for pre-Skylake parts.
+            - name: LIBVA_DRIVER_NAME
+              value: "iHD"
+          ports:
+            - containerPort: 32400
+          readinessProbe:
+            httpGet:
+              path: /identity
+              port: 32400
+            periodSeconds: 5
+            failureThreshold: 60
+          resources:
+            requests:
+              memory: 1Gi
+              cpu: 1000m
+            limits:
+              memory: 4Gi
+              cpu: 4000m
+              # Injects /dev/dri/renderD128 with the correct group. Device
+              # plugin resources are limits-only — they cannot be set under
+              # requests, and Kubernetes mirrors the limit into the request
+              # itself. Requesting it means plex will not schedule at all while
+              # the intel-gpu DaemonSet is unhealthy, which is the right
+              # trade: silent fallback to software transcoding on a 4-core
+              # limit is worse than a visible Pending.
+              gpu.intel.com/i915: 1
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: media
+              mountPath: /data
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: plex-config
+        - name: media
+          persistentVolumeClaim:
+            claimName: plex-media

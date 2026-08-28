@@ -1,0 +1,59 @@
+# The riskiest Kustomization in the whole migration: this operator is how the
+# API server itself is reached (talos-cp-{0,1,2}.tail5f17e.ts.net), and it
+# holds the ProxyClasses/Connectors every other namespace's Tailscale Ingress
+# depends on. Have `talosctl kubeconfig` to hand before applying this.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: tailscale
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: https://pkgs.tailscale.com/helmcharts
+
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: tailscale
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./kubernetes/tailscale
+  prune: true
+  wait: true
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: infrastructure
+
+---
+# Lives in the tailscale namespace, not flux-system, so that `valuesFrom` can
+# read the ConfigMap the Kustomization above generates from
+# operator-values.yaml. The chart reads the pre-existing `operator-oauth`
+# Secret automatically (created by the OnePasswordItem in this same
+# directory) — no oauth credentials are set here or in values.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: tailscale
+  namespace: tailscale
+spec:
+  interval: 30m
+  # Pinned defensively, matching every other HelmRelease in this migration —
+  # the operator Deployment and its per-Ingress proxy StatefulSets are created
+  # at runtime by the operator itself, not templated by release name the way
+  # paperless/traefik/monitoring's chart resources are, so this is protective
+  # rather than fixing a known drift today.
+  releaseName: tailscale
+  chart:
+    spec:
+      chart: tailscale-operator
+      version: "1.102.3"
+      sourceRef:
+        kind: HelmRepository
+        name: tailscale
+        namespace: flux-system
+  valuesFrom:
+    - kind: ConfigMap
+      name: operator-values

@@ -1,0 +1,100 @@
+---
+# Scrapes the Flux controllers' /metrics on :8080. Selects on
+# `app.kubernetes.io/part-of: flux` rather than enumerating controller names the
+# way fluxcd/flux2-monitoring-example does — all seven deployments carry the
+# label and all seven expose the `http-prom` port, and a controller added by a
+# future Flux release is then picked up without an edit here. Pods without that
+# port simply produce no target.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: flux-system
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: flux
+    app.kubernetes.io/component: monitoring
+spec:
+  namespaceSelector:
+    matchNames:
+      - flux-system
+  selector:
+    matchLabels:
+      app.kubernetes.io/part-of: flux
+  podMetricsEndpoints:
+    - port: http-prom
+
+---
+# Flux ships no web UI. These alerts are what replaces glancing at the ArgoCD
+# UI to see whether anything is broken, so they are not optional.
+#
+# `release: kube-prometheus-stack` is required — the Prometheus CR selects rules
+# with ruleSelector matchLabels release=kube-prometheus-stack, and a rule
+# without it is silently ignored.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: flux
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: flux.resources
+      rules:
+        # The core one: any Flux resource — Kustomization, HelmRelease,
+        # GitRepository, … — stuck not-Ready. This is the ArgoCD "Degraded"
+        # replacement.
+        #
+        # `max by (...)` is not cosmetic. gotk_resource_info carries a
+        # `revision` label that changes on every commit, which would start a
+        # new series and reset the `for:` timer each time the repo is pushed,
+        # so a genuinely broken app could never age past 15m. Aggregating the
+        # label away fixes that.
+        - alert: FluxResourceNotReady
+          expr: max by (customresource_kind, exported_namespace, name) (gotk_resource_info{ready="False"}) == 1
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Flux {{ $labels.customresource_kind }} {{ $labels.exported_namespace }}/{{ $labels.name }} has not reconciled for 15 minutes."
+            description: "Run `flux get all -A` and check the resource's status conditions. Under ArgoCD this would have shown as Degraded in the UI."
+
+        # Suspending is a legitimate tool during a migration wave, so this is
+        # deliberately slack. It catches the failure it is meant to catch:
+        # something suspended during an incident and never resumed, which looks
+        # exactly like a healthy cluster until you need the change to deploy.
+        - alert: FluxResourceSuspended
+          expr: max by (customresource_kind, exported_namespace, name) (gotk_resource_info{suspended="true"}) == 1
+          for: 24h
+          labels:
+            severity: warning
+          annotations:
+            summary: "Flux {{ $labels.customresource_kind }} {{ $labels.exported_namespace }}/{{ $labels.name }} has been suspended for 24 hours."
+            description: "Suspended resources do not reconcile and drift silently. Resume with `flux resume`, or remove the resource if it is no longer wanted."
+
+    - name: flux.controllers
+      rules:
+        - alert: FluxControllerDown
+          expr: max by (pod) (up{namespace="flux-system"}) == 0
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Flux controller {{ $labels.pod }} is down."
+            description: "Nothing this controller owns is reconciling. Check `kubectl -n flux-system get pods`."
+
+        # `up` disappearing entirely is the case the alert above cannot see: if
+        # the pods are deleted the series stop existing rather than going to 0.
+        # absent() alone would fire on any cluster where Flux is not installed,
+        # so it is gated on kube-state-metrics still reporting Flux custom
+        # resources — those come from the API server, not from the controllers,
+        # so they survive the controllers being gone. Before Flux is installed
+        # neither side is true and this stays silent.
+        - alert: FluxControllersAbsent
+          expr: absent(up{namespace="flux-system"}) == 1 and on() (count(gotk_resource_info) > 0)
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: "No Flux controllers are running, but Flux resources still exist."
+            description: "The whole flux-system namespace has stopped reporting. Nothing in the cluster is reconciling from git."

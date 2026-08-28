@@ -1,0 +1,66 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: longhorn
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: https://charts.longhorn.io
+
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: longhorn
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./kubernetes/longhorn
+  prune: true
+  wait: true
+  timeout: 5m
+  # Kept permanently, unlike the rest of the migration where this was flipped
+  # back to the default in wave 15. With the default MirrorPrune, deleting this
+  # Kustomization would delete the storage layer underneath every stateful
+  # workload in the cluster — every PVC in every namespace. Orphan makes that
+  # deletion leave the volumes alone and cost a manual cleanup instead, which is
+  # the right trade for the one app whose accidental removal is unrecoverable.
+  deletionPolicy: Orphan
+  sourceRef:
+    kind: GitRepository
+    name: infrastructure
+
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: longhorn
+  namespace: longhorn-system
+spec:
+  interval: 30m
+  # Matches the live release: every workload carries
+  # `app.kubernetes.io/instance: longhorn`. The chart's own resource names are
+  # static (`longhorn-manager`, `longhorn-ui`, `csi-*`) and the DaemonSet
+  # selectors are the release-independent `app: longhorn-manager`, so nothing
+  # here is renamed by the adoption — but it is pinned rather than defaulted
+  # because a recreation of longhorn-manager would take every Longhorn volume
+  # in the cluster offline.
+  releaseName: longhorn
+  chart:
+    spec:
+      chart: longhorn
+      version: "1.12.1"
+      sourceRef:
+        kind: HelmRepository
+        name: longhorn
+        namespace: flux-system
+  # The ArgoCD Application carried an ignoreDifferences entry for
+  # CustomResourceDefinition /spec/preserveUnknownFields, because the API server
+  # rewrites that field and ArgoCD's diff then reported the app permanently
+  # OutOfSync and selfHealed it in a loop. Flux needs no equivalent: drift
+  # detection on a HelmRelease is disabled by default, so helm-controller does
+  # not diff live objects against the rendered chart between upgrades. Do not
+  # enable spec.driftDetection here without re-adding an exclusion for it.
+  valuesFrom:
+    - kind: ConfigMap
+      name: longhorn-values

@@ -1,0 +1,23 @@
+# Bootstrap. Applied by hand today, by Talos once PR 14 lands — see
+# kubernetes/flux-system/README.md.
+#
+# The only Git source in the cluster. Everything Flux reconciles is fetched
+# through this one object, so it and root.yaml beside it are the whole of the
+# bootstrap; every other Flux resource arrives from the repo itself.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: infrastructure
+  namespace: flux-system
+spec:
+  # The repo is private, so this is not optional. The Secret is created out of
+  # band from 1Password — a manifest holding op:// refs cannot be applied by
+  # Flux (or by Talos) without becoming a Secret whose password is the literal
+  # string "op://...". That exact mistake is documented in talos/talconfig.yaml
+  # for ArgoCD's copy; it applies here unchanged.
+  secretRef:
+    name: flux-git-auth
+  interval: 1m
+  url: https://github.com/edjeffreys/infrastructure
+  ref:
+    branch: master

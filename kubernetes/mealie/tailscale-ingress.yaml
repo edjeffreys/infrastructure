@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mealie-tailscale
+  namespace: mealie
+  annotations:
+    tailscale.com/hostname: "mealie"
+    tailscale.com/proxy-class: "standard"
+spec:
+  ingressClassName: tailscale
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: mealie
+                port:
+                  number: 9000
+  tls:
+    - hosts:
+        - mealie

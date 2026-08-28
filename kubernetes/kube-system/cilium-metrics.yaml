@@ -1,0 +1,64 @@
+---
+# Cilium agent metrics (DaemonSet — use PodMonitor)
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: cilium-agent
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      k8s-app: cilium
+  podMetricsEndpoints:
+    - port: prometheus
+      path: /metrics
+  namespaceSelector:
+    matchNames:
+      - kube-system
+---
+# Cilium operator metrics service
+apiVersion: v1
+kind: Service
+metadata:
+  name: cilium-operator-metrics
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: cilium-operator
+spec:
+  ports:
+    - name: prometheus
+      port: 9963
+      targetPort: 9963
+  selector:
+    app.kubernetes.io/name: cilium-operator
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: cilium-operator
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cilium-operator
+  endpoints:
+    - port: prometheus
+  namespaceSelector:
+    matchNames:
+      - kube-system
+---
+# Hubble metrics (service already exists)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: hubble-metrics
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hubble
+  endpoints:
+    - port: hubble-metrics
+  namespaceSelector:
+    matchNames:
+      - kube-system

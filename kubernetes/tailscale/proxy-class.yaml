@@ -1,0 +1,42 @@
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyClass
+metadata:
+  name: standard
+spec:
+  statefulSet:
+    pod:
+      nodeSelector:
+        node-type: standard
+      tailscaleContainer:
+        resources:
+          requests:
+            cpu: 10m
+            memory: 64Mi
+          limits:
+            memory: 256Mi
+---
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyClass
+metadata:
+  name: pia-exit
+spec:
+  statefulSet:
+    pod:
+      nodeSelector:
+        node-type: pia
+      tolerations:
+        - key: node-type
+          operator: Equal
+          value: pia
+          effect: NoSchedule
+        - key: node-type
+          operator: Equal
+          value: pia
+          effect: NoExecute
+      tailscaleContainer:
+        resources:
+          requests:
+            cpu: 10m
+            memory: 64Mi
+          limits:
+            memory: 256Mi

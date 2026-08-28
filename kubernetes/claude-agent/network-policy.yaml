@@ -1,0 +1,56 @@
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: claude-agent
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-kube-apiserver
+  namespace: claude-agent
+spec:
+  endpointSelector:
+    matchLabels:
+      app: claude-agent
+  egress:
+    - toEntities:
+        - kube-apiserver
+    - toServices:
+        - k8sService:
+            serviceName: kubernetes
+            namespace: default
+
+---
+# Outbound to api.anthropic.com (Remote Control keeps a long-lived connection
+# open here), github.com and the npm registry.
+#
+# No ingress rule anywhere in this namespace, deliberately: Remote Control is
+# outbound-only, so the agent needs no Tailscale ingress and no listening port.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-world-egress
+  namespace: claude-agent
+spec:
+  endpointSelector:
+    matchLabels:
+      app: claude-agent
+  egress:
+    - toEntities:
+        - world

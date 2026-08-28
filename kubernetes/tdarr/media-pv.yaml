@@ -1,0 +1,37 @@
+---
+# Third static PV against the same TrueNAS export as arr (media-nfs, RWX) and
+# plex (plex-media-nfs, ReadOnlyMany). Tdarr needs ReadWriteMany, not read-only:
+# the whole point is that it rewrites library files in place, replacing the
+# original once a transcode passes its health check.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: tdarr-media-nfs
+spec:
+  capacity:
+    storage: 10Ti
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  mountOptions:
+    - nfsvers=4.1
+  nfs:
+    server: 10.60.0.233
+    path: /mnt/main0/Media
+  claimRef:
+    namespace: tdarr
+    name: tdarr-media
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tdarr-media
+  namespace: tdarr
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""
+  resources:
+    requests:
+      storage: 10Ti
+  volumeName: tdarr-media-nfs

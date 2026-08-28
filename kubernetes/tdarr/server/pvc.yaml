@@ -1,0 +1,16 @@
+---
+# Server state: the Tdarr database, plugin library and job history. Small,
+# random-access, single writer — longhorn, same as every other app's -config
+# volume.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tdarr-server
+  namespace: tdarr
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 20Gi

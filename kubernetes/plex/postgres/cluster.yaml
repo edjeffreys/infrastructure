@@ -1,0 +1,76 @@
+---
+# Postgres for Plex.
+#
+# Plex has no official Postgres support. It reaches this database through the
+# cgnl/plex-postgresql LD_PRELOAD shim, which intercepts Plex's SQLite calls and
+# translates them — see the image in ../deployment.yaml. The shim uses a named
+# schema "plex" inside this database rather than public, and creates it itself
+# on first start.
+#
+# The motivation is corruption resistance, not availability: Plex corrupted its
+# SQLite library on 24 March (com.plexapp.plugins.library.db.corrupt is still on
+# the config volume) and Sonarr corrupted its three weeks later, both on
+# Longhorn-backed volumes sharing the single Proxmox disk. Plex still runs
+# single-instance behind a ReadWriteOnce config volume; nothing here changes
+# that, and the Deployment still needs strategy: Recreate.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: plex-postgres
+  namespace: plex
+spec:
+  # Two instances, one per standard node. Same reasoning as arr-postgres: CNPG
+  # gives every Cluster a PDB, and for a single-instance cluster that PDB blocks
+  # draining the node it sits on, so a Talos upgrade would hang rather than fail.
+  instances: 2
+
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.6-standard-trixie
+
+  affinity:
+    nodeSelector:
+      node-type: standard
+    # required, not the default preferred: two instances on one node would
+    # reintroduce the drain problem instances: 2 exists to solve. Three standard
+    # nodes are available, so this schedules comfortably.
+    enablePodAntiAffinity: true
+    podAntiAffinityType: required
+
+  storage:
+    # longhorn-single, not longhorn: CNPG already keeps a second full copy of
+    # this database via streaming replication (instances: 2 above), so the
+    # default class's numberOfReplicas: 2 would make four copies on the one
+    # Proxmox physical disk and four writes per commit. The CNPG docs call this
+    # out directly and recommend one block-storage replica. The class also sets
+    # dataLocality: best-effort, so each instance reads its own disk rather than
+    # crossing the network.
+    size: 10Gi
+    storageClass: longhorn-single
+
+  postgresql:
+    parameters:
+      # The shim defaults to PLEX_PG_POOL_SIZE=50 and PLEX_PG_POOL_MAX=100.
+      # CNPG's default max_connections is 100, less the superuser and
+      # replication reservations — Plex could exhaust the pool under load.
+      max_connections: "200"
+      # Kept low deliberately: 200 possible backends at a larger work_mem could
+      # balloon well past the memory limit below.
+      work_mem: 4MB
+      shared_buffers: 256MB
+      maintenance_work_mem: 64MB
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      memory: 1536Mi
+
+  monitoring:
+    enablePodMonitor: true
+
+  # A single database, so no Database CRD indirection here — unlike arr, which
+  # needs five and therefore bootstraps a placeholder.
+  bootstrap:
+    initdb:
+      database: plex
+      owner: plex

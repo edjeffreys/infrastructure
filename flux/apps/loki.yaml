@@ -1,0 +1,70 @@
+# loki and promtail were separate ArgoCD Applications that both pointed at
+# kubernetes/loki. Flux keeps them as two HelmReleases under one Kustomization
+# — see kubernetes/loki/kustomization.yaml for why they can't be split back
+# into two Kustomizations.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: grafana
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: https://grafana.github.io/helm-charts
+
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: loki
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./kubernetes/loki
+  prune: true
+  wait: true
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: infrastructure
+
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: loki
+  namespace: loki
+spec:
+  interval: 30m
+  releaseName: loki
+  chart:
+    spec:
+      chart: loki
+      version: "7.3.0"
+      sourceRef:
+        kind: HelmRepository
+        name: grafana
+        namespace: flux-system
+  valuesFrom:
+    - kind: ConfigMap
+      name: loki-values
+
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: promtail
+  namespace: loki
+spec:
+  interval: 30m
+  releaseName: promtail
+  chart:
+    spec:
+      chart: promtail
+      version: "6.17.1"
+      sourceRef:
+        kind: HelmRepository
+        name: grafana
+        namespace: flux-system
+  valuesFrom:
+    - kind: ConfigMap
+      name: promtail-values

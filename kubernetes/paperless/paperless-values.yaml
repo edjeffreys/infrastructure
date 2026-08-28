@@ -1,0 +1,38 @@
+env:
+  PAPERLESS_URL: https://paperless.tail5f17e.ts.net
+  PAPERLESS_TIME_ZONE: Europe/London
+  PAPERLESS_OCR_LANGUAGE: eng
+  PAPERLESS_REDIS: redis://redis:6379
+  PAPERLESS_CONSUMER_POLLING: "10"
+
+envFrom:
+  - secretRef:
+      name: paperless-secret
+
+nodeSelector:
+  node-type: standard
+
+persistence:
+  data:
+    enabled: true
+    storageClass: longhorn
+    accessMode: ReadWriteOnce
+    size: 1.5Gi
+  media:
+    enabled: true
+    storageClass: nfs
+    accessMode: ReadWriteMany
+    size: 20Gi
+  consume:
+    enabled: true
+    storageClass: nfs
+    accessMode: ReadWriteMany
+    size: 2Gi
+  export:
+    enabled: true
+    storageClass: nfs
+    accessMode: ReadWriteMany
+    size: 5Gi
+
+redis:
+  enabled: false

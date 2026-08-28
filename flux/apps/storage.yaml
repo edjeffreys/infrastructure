@@ -1,0 +1,19 @@
+# Cluster-scoped only: both files declare a StorageClass, which is why the
+# ArgoCD Application's `destination.namespace: kube-system` was just an anchor
+# and nothing here reproduces it. No kustomization.yaml is needed (no
+# `-values.yaml` to exclude), and deliberately no `namespace:` — setting one
+# would have kustomize try to namespace cluster-scoped objects.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: storage
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./kubernetes/storage
+  prune: true
+  wait: true
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: infrastructure

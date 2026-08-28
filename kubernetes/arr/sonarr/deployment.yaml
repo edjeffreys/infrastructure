@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sonarr
+  namespace: arr
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: sonarr
+  template:
+    metadata:
+      labels:
+        app: sonarr
+    spec:
+      nodeSelector:
+        node-type: pia
+      tolerations:
+        - key: node-type
+          value: pia
+
+      containers:
+        - name: sonarr
+          image: ghcr.io/hotio/sonarr:release-4.0.19.2979@sha256:a16f50198a8db06301fb49e0c2d551261e8eb43323d482e919fa8e44ba804534
+          env:
+            - name: PUID
+              value: "3000"
+            - name: PGID
+              value: "3000"
+            # Postgres instead of the SQLite files that used to live on the
+            # config volume. /config is still used for config.xml, logs,
+            # MediaCover and Backups, so the PVC stays.
+            #
+            # Sonarr needs two databases: the main one and a separate log one.
+            # Both are declared in ../postgres/databases.yaml.
+            - name: SONARR__POSTGRES__HOST
+              value: arr-postgres-rw
+            - name: SONARR__POSTGRES__PORT
+              value: "5432"
+            - name: SONARR__POSTGRES__MAINDB
+              value: sonarr-main
+            - name: SONARR__POSTGRES__LOGDB
+              value: sonarr-log
+            - name: SONARR__POSTGRES__USER
+              valueFrom:
+                secretKeyRef:
+                  name: arr-postgres-app
+                  key: username
+            - name: SONARR__POSTGRES__PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: arr-postgres-app
+                  key: password
+          ports:
+            - containerPort: 8989
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: 8989
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: 100m
+            limits:
+              memory: 1Gi
+              cpu: 1000m
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: sonarr-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: media

@@ -1,0 +1,37 @@
+---
+# Serves the UI on 8265 over HTTPS, consistent with every other app here.
+#
+# KNOWN LIMITATION: Tdarr's browser UI calls the server API on 8266 directly,
+# and an Ingress carries a single backend port — so UI actions that hit 8266
+# (Start Scan, delete library, delete past jobs) fail silently while the page
+# itself renders fine. Verified by port-forwarding both ports, where the same
+# actions work.
+#
+# The fix is `tailscale.com/expose` on the Service, which puts all ports on one
+# tailnet host; that was tried and reverted because it costs HTTPS (layer-4
+# proxy) and changes the URL to http://tdarr.tail5f17e.ts.net:8265. Workaround
+# in the meantime:
+#   kubectl -n tdarr port-forward svc/tdarr-server 8265:8265 8266:8266
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tdarr-tailscale
+  namespace: tdarr
+  annotations:
+    tailscale.com/hostname: "tdarr"
+    tailscale.com/proxy-class: "standard"
+spec:
+  ingressClassName: tailscale
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: tdarr-server
+                port:
+                  number: 8265
+  tls:
+    - hosts:
+        - tdarr

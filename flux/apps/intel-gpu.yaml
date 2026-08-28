@@ -1,0 +1,18 @@
+# The Application set `directory.recurse: true`, which is dropped: recursion is
+# Flux's default, and this directory is flat today anyway. `CreateNamespace=true`
+# needs no replacement either — kubernetes/intel-gpu/namespace.yaml already
+# exists, unlike the arc-* apps in wave 12a.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: intel-gpu
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./kubernetes/intel-gpu
+  prune: true
+  wait: true
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: infrastructure

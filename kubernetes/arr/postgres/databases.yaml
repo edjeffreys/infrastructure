@@ -1,0 +1,80 @@
+---
+# Sonarr and Radarr each require two databases: the main one and a separate log
+# database. Seerr uses a single one.
+#
+# All five are owned by the single "arr" role created by the Cluster's initdb
+# bootstrap, so every app authenticates with the same arr-postgres-app Secret.
+# Per-app roles would each need their own kubernetes.io/basic-auth Secret for
+# spec.managed.roles, which OnePasswordItem cannot generate; for a
+# single-tenant homelab the isolation would not be buying anything anyway.
+#
+# databaseReclaimPolicy: retain means deleting one of these resources detaches
+# it from CNPG rather than dropping the database.
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: sonarr-main
+  namespace: arr
+spec:
+  name: sonarr-main
+  owner: arr
+  cluster:
+    name: arr-postgres
+  ensure: present
+  databaseReclaimPolicy: retain
+
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: sonarr-log
+  namespace: arr
+spec:
+  name: sonarr-log
+  owner: arr
+  cluster:
+    name: arr-postgres
+  ensure: present
+  databaseReclaimPolicy: retain
+
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: radarr-main
+  namespace: arr
+spec:
+  name: radarr-main
+  owner: arr
+  cluster:
+    name: arr-postgres
+  ensure: present
+  databaseReclaimPolicy: retain
+
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: radarr-log
+  namespace: arr
+spec:
+  name: radarr-log
+  owner: arr
+  cluster:
+    name: arr-postgres
+  ensure: present
+  databaseReclaimPolicy: retain
+
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: seerr
+  namespace: arr
+spec:
+  name: seerr
+  owner: arr
+  cluster:
+    name: arr-postgres
+  ensure: present
+  databaseReclaimPolicy: retain

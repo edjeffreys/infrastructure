@@ -1,0 +1,52 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: jetstack
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: https://charts.jetstack.io
+
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: cert-manager
+  namespace: flux-system
+spec:
+  interval: 10m
+  # No explicit kustomization.yaml needed here, unlike every other Helm app in
+  # this migration: cert-manager has no `-values.yaml` file to keep out of
+  # autodetect (its ArgoCD Application used `helm.parameters`, not
+  # `$values/`), so every file under this path is already a valid manifest.
+  path: ./kubernetes/cert-manager
+  prune: true
+  wait: true
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: infrastructure
+
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: cert-manager
+  namespace: cert-manager
+spec:
+  interval: 30m
+  # Pinned defensively; already matches the HelmRelease name today.
+  releaseName: cert-manager
+  chart:
+    spec:
+      chart: cert-manager
+      version: "v1.21.1"
+      sourceRef:
+        kind: HelmRepository
+        name: jetstack
+        namespace: flux-system
+  # No values file to generate a ConfigMap from — the ArgoCD Application set
+  # this via `helm.parameters` instead of `$values/`, so it comes across as an
+  # inline value rather than a valuesFrom reference.
+  values:
+    installCRDs: true

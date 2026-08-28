@@ -1,0 +1,128 @@
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: tailscale
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+
+---
+# Allow tailscale operator to reach Kubernetes API and Tailscale control plane
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-kube-apiserver
+  namespace: tailscale
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:app: operator
+  egress:
+    - toEntities:
+        - kube-apiserver
+        - world
+    - toServices:
+        - k8sService:
+            serviceName: kubernetes
+            namespace: default
+
+---
+# Allow tailscale proxy pods to reach Tailscale coordination servers, DERP relays, and kube API (for state secrets)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-tailscale-egress
+  namespace: tailscale
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:tailscale.com/managed: "true"
+  egress:
+    - toEntities:
+        - world
+        - kube-apiserver
+        - host
+    - toServices:
+        - k8sService:
+            serviceName: kubernetes
+            namespace: default
+
+---
+# Allow inbound WireGuard and DERP traffic to tailscale proxy/connector pods
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-tailscale-ingress
+  namespace: tailscale
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:tailscale.com/managed: "true"
+  ingress:
+    - fromEntities:
+        - host
+        - remote-node
+        - world
+
+---
+# Allow tailscale proxy pods to reach backend services
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-backend-egress
+  namespace: tailscale
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:tailscale.com/managed: "true"
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: arr
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: plex
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: mealie
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:app.kubernetes.io/name: hubble-ui
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:k8s-app: hubble-relay
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: goldilocks
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: paperless
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: pinchflat
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: emby
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: tdarr
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: longhorn-system

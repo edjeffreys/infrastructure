@@ -1,0 +1,65 @@
+# The first Helm app to move. Three objects rather than one, because ArgoCD's
+# multi-source Application collapsed all of this into a single manifest:
+# the chart repo, the manifests beside the chart, and the release itself.
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: gabe565
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: https://charts.gabe565.com
+
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: paperless
+  namespace: flux-system
+spec:
+  interval: 10m
+  # Everything the chart does not ship: the namespace, the Cilium policies, the
+  # OnePasswordItem, the standalone redis, the Tailscale Ingress — and the
+  # ConfigMap generated from paperless-values.yaml that the HelmRelease below
+  # reads. kubernetes/paperless/kustomization.yaml lists them explicitly,
+  # because autodetect would try to parse the values file as a manifest.
+  path: ./kubernetes/paperless
+  prune: true
+  wait: true
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: infrastructure
+
+---
+# Lives in the paperless namespace, not flux-system, so that `valuesFrom` can
+# read the generated ConfigMap — valuesFrom resolves in the HelmRelease's own
+# namespace, and the ConfigMap is produced by the Kustomization above alongside
+# the rest of the app. That also makes targetNamespace and storageNamespace
+# unnecessary: both default to this namespace.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: paperless
+  namespace: paperless
+spec:
+  interval: 30m
+  # NOT optional, and not cosmetic. The chart names resources after the release,
+  # and the live Deployment's selector is
+  # `app.kubernetes.io/instance: paperless` — an immutable field. Letting the
+  # release name default to the HelmRelease name would still be `paperless`
+  # here, but pinning it means a future rename of this object cannot silently
+  # force a Deployment recreation. Same trap as traefik's `ingress-traefik`.
+  releaseName: paperless
+  chart:
+    spec:
+      chart: paperless-ngx
+      version: "0.24.1"
+      sourceRef:
+        kind: HelmRepository
+        name: gabe565
+        namespace: flux-system
+  valuesFrom:
+    - kind: ConfigMap
+      name: paperless-values

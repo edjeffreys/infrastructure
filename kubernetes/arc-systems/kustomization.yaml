@@ -1,0 +1,11 @@
+# Explicit resources list, not autodetect. Two files under this path are not
+# manifests and would fail the build with "missing Resource metadata":
+# README.md, and controller-values.yaml — which is a single comment line that
+# nothing references (see flux/apps/arc-systems.yaml).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: arc-systems
+resources:
+  - namespace.yaml
+  - network-policy.yaml
+  - github-app-secret.yaml

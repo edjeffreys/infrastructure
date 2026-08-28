@@ -1,0 +1,183 @@
+---
+# Allow DNS
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: plex
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+
+---
+# Allow plex internet egress (metadata, streaming)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: plex-egress
+  namespace: plex
+spec:
+  endpointSelector:
+    matchLabels:
+      app: plex
+  egress:
+    - toEntities:
+        - world
+    - toEndpoints:
+        - matchLabels:
+            k8s:cnpg.io/cluster: plex-postgres
+      toPorts:
+        - ports:
+            - port: "5432"
+
+---
+# Allow ingress from traefik and seerr
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: plex-ingress
+  namespace: plex
+spec:
+  endpointSelector:
+    matchLabels:
+      app: plex
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: traefik
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: tailscale
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: arr
+            k8s:app: seerr
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: arr
+            k8s:app: radarr
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: arr
+            k8s:app: sonarr
+        # Tdarr triggers a partial library scan after rewriting a file, so Plex
+        # re-reads the stream info instead of serving stale analysis.
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: tdarr
+      toPorts:
+        - ports:
+            - port: "32400"
+
+---
+# Plex reaches its database through the plex-postgresql shim (see deployment.yaml).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: plex-postgres-ingress
+  namespace: plex
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:cnpg.io/cluster: plex-postgres
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:app: plex
+      toPorts:
+        - ports:
+            - port: "5432"
+
+---
+# The operator drives each instance through its instance manager on 8000 and
+# connects to Postgres itself on 5432.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: plex-postgres-operator-ingress
+  namespace: plex
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:cnpg.io/cluster: plex-postgres
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: cnpg-system
+      toPorts:
+        - ports:
+            - port: "5432"
+            - port: "8000"
+
+---
+# Streaming replication between the two instances, and the pg_basebackup a
+# joining replica runs against the primary. Both directions are needed: the
+# instance pods are egress-restricted (selected by allow-dns), so the replica's
+# outbound 5432 has to be allowed explicitly, not just the primary's inbound.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: plex-postgres-replication
+  namespace: plex
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:cnpg.io/cluster: plex-postgres
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:cnpg.io/cluster: plex-postgres
+      toPorts:
+        - ports:
+            - port: "5432"
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:cnpg.io/cluster: plex-postgres
+      toPorts:
+        - ports:
+            - port: "5432"
+
+---
+# Prometheus scrapes the instance manager's metrics endpoint.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: plex-postgres-metrics-ingress
+  namespace: plex
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:cnpg.io/cluster: plex-postgres
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "9187"
+
+---
+# The instance manager watches its own Cluster resource; the bootstrap and join
+# Jobs CNPG spawns carry the same cnpg.io/cluster label and need this too.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: plex-postgres-apiserver-egress
+  namespace: plex
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:cnpg.io/cluster: plex-postgres
+  egress:
+    - toEntities:
+        - kube-apiserver
+    - toServices:
+        - k8sService:
+            serviceName: kubernetes
+            namespace: default
