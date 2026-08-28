@@ -336,6 +336,11 @@ as the upstream Servarr guide says, fails on PostgreSQL 15+.
 sabnzbd has no database; plex, emby and pinchflat have no upstream Postgres support.
 mealie, paperless and grafana all support it and are still on SQLite.
 
+actual-budget is a permanent exception rather than a pending migration: its sync
+protocol treats each budget as a SQLite file that the server stores whole and
+ships to clients as a blob, so SQLite is the data model and not a swappable
+backend. Do not open this question again.
+
 **Backups**: none yet beyond Longhorn snapshots. A logical `pg_dump` CronJob to the `nfs`
 storage class is the outstanding action.
 
@@ -506,6 +511,7 @@ See `kubernetes/arc-systems/README.md` for the full setup and a diagnosis runboo
 | seerr | arr | pia | Postgres (`seerr` on `arr-postgres`) |
 | arr-postgres | arr | pia | CNPG cluster for the arr stack |
 | mealie | mealie | standard | |
+| actual-budget | actual-budget | standard | SQLite only — see "Not migrated" above |
 | paperless | paperless | standard | Helm chart, Tailscale ingress |
 | homeassistant | homeassistant | external | ExternalName proxy → `homeassistant.mng.skaal.lan:8123`, Traefik ingress only |
 
