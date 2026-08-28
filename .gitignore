@@ -62,6 +62,13 @@ terraform.rc
 # End of https://www.toptal.com/developers/gitignore/api/packer,terraform
 
 ### Talos ###
+# talsecret.yaml holds the cluster PKI; clusterconfig/ holds the generated node
+# configs and a talosconfig, which is the Talos admin cert — root on every node.
+#
+# Both paths appear twice because talhelper writes clusterconfig/ relative to
+# the working directory, so running it from the repo root rather than from
+# talos/ drops the same material one level up.
 talos/talsecret.yaml
 talos/clusterconfig/
-
+talsecret.yaml
+clusterconfig/

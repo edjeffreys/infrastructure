@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# The repo is private, so a missing GH_TOKEN otherwise surfaces as git's opaque
-# "could not read Username for 'https://github.com'" from the clone below
-# rather than as the real problem.
+# Checked up front because git reports a missing credential as the opaque
+# "could not read Username for 'https://github.com'" rather than as the real
+# problem — from the clone below while the repo is private, and from the first
+# push once it is public.
 if [ -z "${GH_TOKEN:-}" ]; then
   echo "!! missing required env: GH_TOKEN" >&2
   echo "!! It comes from the 'GH_TOKEN' field on the 1Password item" >&2
