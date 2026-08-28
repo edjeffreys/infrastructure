@@ -1,0 +1,54 @@
+name: Build claude-agent image
+
+# ARC runners have no Docker daemon; Kaniko builds daemonless as a
+# Kubernetes-mode job-container pod (see runner-scale-set-values.yaml).
+# No checkout step: the executor image has no git or Node.js, so Kaniko
+# clones its --context git URL itself instead.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - images/claude-agent/**
+      - .github/workflows/build-claude-agent.yaml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+# Don't cancel a build for a newer push - it should still finish, not leave
+# :latest built from neither commit.
+concurrency:
+  group: build-claude-agent-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: arc-runners
+    container:
+      # debug tag: the plain executor image is scratch-based, no shell.
+      image: gcr.io/kaniko-project/executor:v1.24.0-debug
+    steps:
+      - name: Build and push
+        run: |
+          set -eu
+
+          AUTH=$(printf '%s:%s' "${{ github.actor }}" "${{ secrets.GITHUB_TOKEN }}" | base64 | tr -d '\n')
+          mkdir -p /kaniko/.docker
+          cat <<EOF > /kaniko/.docker/config.json
+          {"auths":{"ghcr.io":{"auth":"${AUTH}"}}}
+          EOF
+
+          SHA_TAG="sha-$(echo "${GITHUB_SHA}" | head -c7)"
+
+          /kaniko/executor \
+            --context="${{ github.repositoryUrl }}#${{ github.ref }}#${{ github.sha }}" \
+            --context-sub-path=images/claude-agent \
+            --dockerfile=Dockerfile \
+            --destination="ghcr.io/edjeffreys/claude-agent:latest" \
+            --destination="ghcr.io/edjeffreys/claude-agent:${SHA_TAG}" \
+            --push-retry 5
+        env:
+          GIT_USERNAME: ${{ github.actor }}
+          GIT_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
