@@ -247,3 +247,34 @@ After changing the 1Password item, force the sync rather than waiting on the
 kubectl -n onepassword-operator rollout restart deploy/onepassword-connect-operator
 kubectl -n arc-systems rollout restart deploy/arc-systems-gha-rs-controller
 ```
+
+## Jobs fail in seconds with no steps and no logs
+
+A different failure from the one above: the runner pod *does* start, then the
+job goes red about a second later. `gh run view --log-failed` prints nothing and
+the job has an empty `steps` array, because the worker crashes before the first
+step exists to log against. It looks like a registration or credentials fault
+and is neither.
+
+The cause is ownership of the Kubernetes-mode work volume. `containerMode.type:
+kubernetes` mounts a PVC at `/home/runner/_work`, and a freshly provisioned
+block volume (`longhorn`) arrives owned by root while the runner process is uid
+1001 — so it cannot create `_work/_tool`:
+
+```
+System.UnauthorizedAccessException: Access to the path '/home/runner/_work/_tool' is denied.
+```
+
+The fix is `template.spec.securityContext.fsGroup: 1001` in
+`runner-scale-set-values.yaml`, which makes the kubelet chown the volume at
+mount time. This is only needed for volume types that honour `fsGroup`, and was
+invisible while the work volume was on `nfs`, where the TrueNAS export squashed
+ownership server-side.
+
+The runner pod is deleted as soon as the job ends, so catch the log while it is
+alive — poll for the pod rather than trying to fetch it afterwards:
+
+```bash
+while ! kubectl -n arc-runners get pods -o name | head -1 | grep .; do sleep 2; done
+kubectl -n arc-runners logs -l actions.github.com/scale-set-name=arc-runners --tail=200
+```
