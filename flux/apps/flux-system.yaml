@@ -1,0 +1,30 @@
+# Flux's own namespace config — the Cilium policies in kubernetes/flux-system/.
+#
+# Deliberately managed by Flux itself rather than left to a bootstrap apply.
+# ArgoCD never did this: its own kubernetes/argocd/network-policy.yaml was
+# referenced by no Application, so those policies were live only because
+# somebody ran kubectl at bootstrap and nothing reconciled them afterwards.
+# They were deleted unreconciled with the rest of ArgoCD in wave 14. Not
+# repeating that mistake here.
+#
+# Self-management has one sharp edge, now that the clusterwide `default-deny` is
+# live: Flux fetches these policies from GitHub, so a namespace with no policy
+# cannot reach GitHub to fetch the policy that would let it. The bootstrap
+# therefore applies network-policy.yaml by hand *before* flux/bootstrap/ — see
+# kubernetes/flux-system/README.md. Flux adopts it from there.
+#
+# Recovery if a bad policy ever locks the controllers out is the same move:
+# `kubectl -n flux-system delete cnp --all`, then re-apply by hand and let Flux
+# reconcile.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: flux-system
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./kubernetes/flux-system
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: infrastructure

@@ -1,0 +1,403 @@
+---
+# Allow all pods to query kube-dns
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: arr
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+
+---
+# Allow sabnzbd internet egress (usenet downloads via PIA)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: sabnzbd-egress
+  namespace: arr
+spec:
+  endpointSelector:
+    matchLabels:
+      app: sabnzbd
+  egress:
+    - toEntities:
+        - world
+
+---
+# Allow sonarr internet egress (metadata) and access to sabnzbd and plex
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: sonarr-egress
+  namespace: arr
+spec:
+  endpointSelector:
+    matchLabels:
+      app: sonarr
+  egress:
+    - toEntities:
+        - world
+    - toEndpoints:
+        - matchLabels:
+            k8s:app: sabnzbd
+      toPorts:
+        - ports:
+            - port: "8080"
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: plex
+            k8s:app: plex
+      toPorts:
+        - ports:
+            - port: "32400"
+    - toEndpoints:
+        - matchLabels:
+            k8s:cnpg.io/cluster: arr-postgres
+      toPorts:
+        - ports:
+            - port: "5432"
+
+---
+# Allow radarr internet egress (metadata) and access to sabnzbd and plex
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: radarr-egress
+  namespace: arr
+spec:
+  endpointSelector:
+    matchLabels:
+      app: radarr
+  egress:
+    - toEntities:
+        - world
+    - toEndpoints:
+        - matchLabels:
+            k8s:app: sabnzbd
+      toPorts:
+        - ports:
+            - port: "8080"
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: plex
+            k8s:app: plex
+      toPorts:
+        - ports:
+            - port: "32400"
+    - toEndpoints:
+        - matchLabels:
+            k8s:cnpg.io/cluster: arr-postgres
+      toPorts:
+        - ports:
+            - port: "5432"
+
+---
+# Allow ingress to all arr pods from tailscale namespace (proxy pods) and traefik
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-tailscale-ingress
+  namespace: arr
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: tailscale
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: traefik
+
+---
+# Allow seerr internet egress and access to sonarr/radarr
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: seerr-egress
+  namespace: arr
+spec:
+  endpointSelector:
+    matchLabels:
+      app: seerr
+  egress:
+    - toEntities:
+        - world
+    - toEndpoints:
+        - matchLabels:
+            k8s:app: sonarr
+      toPorts:
+        - ports:
+            - port: "8989"
+    - toEndpoints:
+        - matchLabels:
+            k8s:app: radarr
+      toPorts:
+        - ports:
+            - port: "7878"
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: plex
+            app: plex
+      toPorts:
+        - ports:
+            - port: "32400"
+    - toEndpoints:
+        - matchLabels:
+            k8s:cnpg.io/cluster: arr-postgres
+      toPorts:
+        - ports:
+            - port: "5432"
+
+---
+# Allow seerr ingress to sonarr and radarr
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: sonarr-radarr-ingress
+  namespace: arr
+spec:
+  endpointSelector:
+    matchLabels:
+      app: sonarr
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:app: seerr
+      toPorts:
+        - ports:
+            - port: "8989"
+
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: radarr-ingress
+  namespace: arr
+spec:
+  endpointSelector:
+    matchLabels:
+      app: radarr
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:app: seerr
+      toPorts:
+        - ports:
+            - port: "7878"
+
+---
+# Tdarr calls the Sonarr/Radarr APIs after it rewrites a file, so the arr app
+# re-reads the new size, codec and duration instead of holding stale metadata
+# from before the transcode. Kept separate from the seerr policies above
+# because Cilium ORs ingress rules across policies — a distinct policy is
+# easier to remove later than an extra fromEndpoints buried in a rule named
+# for a different consumer.
+#
+# Both tdarr pods are allowed: flow plugins run on the node, but the server
+# performs post-processing of its own, and which one makes the call depends on
+# the flow.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: tdarr-ingress
+  namespace: arr
+spec:
+  endpointSelector:
+    matchLabels:
+      app: sonarr
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: tdarr
+      toPorts:
+        - ports:
+            - port: "8989"
+
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: tdarr-radarr-ingress
+  namespace: arr
+spec:
+  endpointSelector:
+    matchLabels:
+      app: radarr
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: tdarr
+      toPorts:
+        - ports:
+            - port: "7878"
+
+---
+# Allow sonarr and radarr to reach sabnzbd
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: sabnzbd-ingress
+  namespace: arr
+spec:
+  endpointSelector:
+    matchLabels:
+      app: sabnzbd
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:app: sonarr
+        - matchLabels:
+            k8s:app: radarr
+      toPorts:
+        - ports:
+            - port: "8080"
+
+---
+# Postgres (arr-postgres) accepts connections from the three apps that use it,
+# and from the pgloader migration Job in scripts/cnpg-migration/.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: arr-postgres-ingress
+  namespace: arr
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:cnpg.io/cluster: arr-postgres
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:app: sonarr
+        - matchLabels:
+            k8s:app: radarr
+        - matchLabels:
+            k8s:app: seerr
+        - matchLabels:
+            k8s:app: cnpg-migration
+      toPorts:
+        - ports:
+            - port: "5432"
+
+---
+# The operator drives each instance through its instance manager on 8000 and
+# connects to Postgres itself on 5432.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: arr-postgres-operator-ingress
+  namespace: arr
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:cnpg.io/cluster: arr-postgres
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: cnpg-system
+      toPorts:
+        - ports:
+            - port: "5432"
+            - port: "8000"
+
+---
+# Streaming replication between the two arr-postgres instances, and the
+# pg_basebackup a joining replica runs against the primary. Both directions are
+# needed: the instance pods are egress-restricted (they are selected by
+# allow-dns), so the replica's outbound 5432 has to be allowed explicitly, not
+# just the primary's inbound. The short-lived join Job carries the same
+# cnpg.io/cluster label.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: arr-postgres-replication
+  namespace: arr
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:cnpg.io/cluster: arr-postgres
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:cnpg.io/cluster: arr-postgres
+      toPorts:
+        - ports:
+            - port: "5432"
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:cnpg.io/cluster: arr-postgres
+      toPorts:
+        - ports:
+            - port: "5432"
+
+---
+# Prometheus scrapes the instance manager's metrics endpoint (the PodMonitor
+# created by spec.monitoring.enablePodMonitor on the Cluster).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: arr-postgres-metrics-ingress
+  namespace: arr
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:cnpg.io/cluster: arr-postgres
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "9187"
+
+---
+# The instance manager is itself a Kubernetes client: it watches its own Cluster
+# resource and reports status back. The short-lived bootstrap and join Jobs that
+# CNPG spawns carry the same cnpg.io/cluster label and need this too.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: arr-postgres-apiserver-egress
+  namespace: arr
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:cnpg.io/cluster: arr-postgres
+  egress:
+    - toEntities:
+        - kube-apiserver
+    - toServices:
+        - k8sService:
+            serviceName: kubernetes
+            namespace: default
+
+---
+# The pgloader migration Job (scripts/cnpg-migration/) reads a detached SQLite
+# volume and writes into Postgres. Not part of steady-state traffic, but the
+# Job would otherwise be silently blackholed by the default-deny policy.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: cnpg-migration-egress
+  namespace: arr
+spec:
+  endpointSelector:
+    matchLabels:
+      app: cnpg-migration
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:cnpg.io/cluster: arr-postgres
+      toPorts:
+        - ports:
+            - port: "5432"

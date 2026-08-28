@@ -1,0 +1,62 @@
+githubConfigUrl: "https://github.com/edjeffreys/infrastructure"
+
+githubConfigSecret: arc-github-app
+
+# Must match the controller's real ServiceAccount, which the controller chart
+# names after its Helm release (arc-systems) — not the chart default. Get it
+# wrong and the generated RoleBinding in this namespace grants a ServiceAccount
+# that does not exist, so listener and runner pod creation is silently Forbidden.
+controllerServiceAccount:
+  name: arc-systems-gha-rs-controller
+  namespace: arc-systems
+
+minRunners: 0
+maxRunners: 4
+
+template:
+  spec:
+    nodeSelector:
+      node-type: standard
+    containers:
+      - name: runner
+        # Keep this current. GitHub deprecates old runner versions, and an
+        # ephemeral runner cannot self-update: the binary exits 7, ARC marks the
+        # EphemeralRunner Outdated, and that propagates up until the whole
+        # AutoscalingRunnerSet is Outdated — a state it never leaves, because
+        # every rebuild path in the controller is gated behind `!outdated`.
+        # The result is a silent teardown loop that deregisters the scale set
+        # from GitHub on every pass. See kubernetes/arc-systems/README.md.
+        #
+        # Renovate's kubernetes manager cannot see this: it only reads
+        # manifest-shaped files, and a Helm values file has no apiVersion/kind.
+        # A regexManager in renovate.json covers it instead.
+        #
+        # Take the version from the REGISTRY, not from actions/runner releases:
+        # the image is published separately and lags the release tag, so a
+        # release that exists on GitHub may have no image and the pods land in
+        # ImagePullBackOff. Check with:
+        #   TOKEN=$(curl -s "https://ghcr.io/token?scope=repository:actions/actions-runner:pull&service=ghcr.io" | jq -r .token)
+        #   curl -s -H "Authorization: Bearer $TOKEN" https://ghcr.io/v2/actions/actions-runner/tags/list
+        image: ghcr.io/actions/actions-runner:2.337.0
+        command: ["/home/runner/run.sh"]
+        env:
+          - name: TF_TOKEN_app_terraform_io
+            valueFrom:
+              secretKeyRef:
+                name: runner-tokens
+                key: terraform_cloud_token
+          - name: TAILSCALE_API_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: runner-tokens
+                key: tailscale_api_token
+        envFrom:
+          - secretRef:
+              name: packer-proxmox-vars
+        resources:
+          requests:
+            memory: 512Mi
+            cpu: 200m
+          limits:
+            memory: 2Gi
+            cpu: 2000m

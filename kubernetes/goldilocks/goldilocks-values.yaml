@@ -1,0 +1,21 @@
+vpa:
+  enabled: true
+  crds:
+    create: true
+  updater:
+    enabled: false
+  admissionController:
+    enabled: false
+  recommender:
+    nodeSelector:
+      node-type: standard
+
+controller:
+  nodeSelector:
+    node-type: standard
+
+dashboard:
+  nodeSelector:
+    node-type: standard
+  flags:
+    enable-cost: "false"

@@ -1,0 +1,91 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: claude-agent
+  namespace: claude-agent
+spec:
+  replicas: 1
+  # RWO PVC and a single Remote Control registration — never two at once.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: claude-agent
+  template:
+    metadata:
+      labels:
+        app: claude-agent
+    spec:
+      serviceAccountName: claude-agent
+      nodeSelector:
+        node-type: standard
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: claude
+          image: ghcr.io/edjeffreys/claude-agent:latest
+          # Remote Control runs the interactive TUI, which needs a pty. Without
+          # both of these the process starts and immediately gives up on stdin.
+          stdin: true
+          tty: true
+          env:
+            # No CLAUDE_CODE_OAUTH_TOKEN here on purpose — see entrypoint.sh.
+            # Remote Control rejects setup-token credentials as inference-only,
+            # so auth is a one-time interactive /login stored on the PVC.
+            - name: TZ
+              value: Europe/London
+            - name: HOME
+              value: /home/agent
+            - name: REMOTE_CONTROL_NAME
+              value: homelab
+            - name: REPO_URL
+              value: https://github.com/edjeffreys/infrastructure
+            - name: GIT_AUTHOR_NAME
+              value: claude-agent
+            - name: GIT_AUTHOR_EMAIL
+              value: claude-agent@users.noreply.github.com
+            - name: GH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: claude-agent
+                  key: GH_TOKEN
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              memory: 1Gi
+              cpu: 250m
+            limits:
+              memory: 4Gi
+              cpu: 2000m
+          volumeMounts:
+            - name: home
+              mountPath: /home/agent
+            - name: settings
+              mountPath: /etc/claude
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: home
+          persistentVolumeClaim:
+            claimName: claude-agent-home
+        # Both files land in /etc/claude. A projected volume is the only way to
+        # merge two ConfigMaps into one mount path.
+        - name: settings
+          projected:
+            sources:
+              - configMap:
+                  name: claude-agent-settings
+              - configMap:
+                  name: claude-agent-mcp
+        - name: tmp
+          emptyDir: {}

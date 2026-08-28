@@ -1,0 +1,25 @@
+# Explicit resources list, not autodetect: operator-values.yaml is Helm values
+# with no apiVersion/kind, and autodetect would fail the whole build on it with
+# "missing Resource metadata". This is the Flux equivalent of ArgoCD's
+# `directory.exclude: "*-values.yaml"`.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: tailscale
+resources:
+  - exit-nodes.yaml
+  - namespace.yaml
+  - network-policy.yaml
+  - oauth-secret.yaml
+  - proxy-class.yaml
+
+configMapGenerator:
+  # Replaces ArgoCD's `$values/` git ref, which has no Flux equivalent. The
+  # values file itself stays exactly where it was — Renovate's regexManager and
+  # kubeconform's ignore pattern both key off the `-values.yaml` suffix.
+  - name: operator-values
+    files:
+      - values.yaml=operator-values.yaml
+    options:
+      disableNameSuffixHash: true
+      labels:
+        reconcile.fluxcd.io/watch: Enabled

@@ -1,0 +1,26 @@
+apiVersion: "cilium.io/v2"
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: homelab
+spec:
+  blocks:
+    - start: "10.0.0.210"
+      stop: "10.0.0.220"
+    - start: "2a0e:cb01:ca:fe00::210"
+      stop: "2a0e:cb01:ca:fe00::220"
+---
+apiVersion: "cilium.io/v2alpha1"
+kind: CiliumL2AnnouncementPolicy
+metadata:
+  name: homelab
+spec:
+  nodeSelector:
+    matchLabels:
+      node-role.kubernetes.io/control-plane: ""
+  serviceSelector:
+    matchLabels:
+      app.kubernetes.io/name: traefik
+  interfaces:
+    - ens18
+  externalIPs: false
+  loadBalancerIPs: true

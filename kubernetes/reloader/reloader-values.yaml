@@ -1,0 +1,3 @@
+reloader:
+  nodeSelector:
+    node-type: standard

@@ -1,0 +1,34 @@
+---
+# TEMPORARY — delete once Plex is confirmed running on Postgres.
+#
+# Holds a *copy* of the two SQLite databases for the one-time migration into
+# plex-postgres. It exists because the shim's migration source must not be the
+# live config volume:
+#
+#   * The shim's init script unconditionally deletes and recreates
+#     /config/.../Databases/com.plexapp.plugins.library.db on every start — it
+#     replaces it with a schema-only "shadow" database that Plex opens while
+#     real queries are redirected to Postgres. Pointing /source-db at that same
+#     directory means the source is destroyed by the thing meant to read it.
+#
+#   * /source-db must also be writable. check_and_migrate() runs
+#     `sqlite3 "$SQLITE_DB" "SELECT COUNT(*) FROM metadata_items"`, and Plex's
+#     databases are in WAL mode, which SQLite cannot open read-only (it needs to
+#     create a -shm file). That failure is swallowed by `2>/dev/null || echo 0`,
+#     so a read-only mount makes the script conclude the database is empty and
+#     skip the migration silently.
+#
+# 25Gi is generous for ~23MB of database, but Longhorn thin-provisions, so the
+# real cost is the actual bytes.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: plex-sourcedb
+  namespace: plex
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 5Gi

@@ -1,0 +1,21 @@
+# Config for the `lint` job in .github/workflows/validate-manifests.yaml.
+#
+# `relaxed` demotes the cosmetic rules (trailing whitespace, blank lines,
+# comment style) to warnings. yamllint is run WITHOUT --strict, so warnings
+# annotate the PR but do not fail it; only real parse errors, duplicate keys
+# and tab characters do. Tighten by promoting a rule to `level: error` here.
+extends: relaxed
+
+rules:
+  # Manifests carry long image digests, PIA/Tailscale hostnames and CIDR
+  # lists that cannot usefully be wrapped.
+  line-length: disable
+  # Half the repo starts with `---`, half doesn't. Neither is wrong.
+  document-start: disable
+  # `on:` in a GitHub Actions workflow is a legitimate key, not a boolean.
+  truthy:
+    check-keys: false
+
+ignore: |
+  # Vendored bootstrap dumps — argocd.yaml alone is 1.9 MB of generated CRDs.
+  talos/manifests/

@@ -1,0 +1,88 @@
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: flux-system
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+
+---
+# kustomize-controller and helm-controller apply every managed resource through
+# the API server; source-controller reads GitRepository/HelmRepository specs.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-kube-apiserver
+  namespace: flux-system
+spec:
+  endpointSelector: {}
+  egress:
+    - toEntities:
+        - kube-apiserver
+    - toServices:
+        - k8sService:
+            serviceName: kubernetes
+            namespace: default
+
+---
+# source-controller serves fetched artifacts over HTTP on :9090; every other
+# controller pulls from it. All four also POST events to notification-controller
+# on :9090. This is the busiest path in Flux and it is entirely intra-namespace.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-intra-namespace
+  namespace: flux-system
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: flux-system
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: flux-system
+
+---
+# Prometheus scrapes the controllers' /metrics on :8080. This is what makes the
+# gotk_reconcile_condition alert possible, which is the thing that replaces
+# glancing at the ArgoCD UI — Flux ships no web UI.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-monitoring-ingress
+  namespace: flux-system
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+
+---
+# source-controller reaches GitHub, the Helm chart repos and ghcr.io. Same
+# blanket `world` egress ArgoCD's repo-server has, for the same reason: the set
+# of chart hosts changes whenever an app is added.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-external-egress
+  namespace: flux-system
+spec:
+  endpointSelector: {}
+  egress:
+    - toEntities:
+        - world

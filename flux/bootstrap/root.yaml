@@ -1,0 +1,16 @@
+# Bootstrap. The Flux equivalent of argocd/root-app.yaml: the one Kustomization
+# applied by hand, which then pulls in every per-app Kustomization from
+# flux/apps/. Named `root` rather than `flux-system` so it does not collide
+# with the flux-system app in flux/apps/flux-system.yaml.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: root
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./flux/apps
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: infrastructure

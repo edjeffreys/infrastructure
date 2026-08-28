@@ -1,0 +1,8 @@
+# New in the Flux migration. The ArgoCD Application created this namespace with
+# `CreateNamespace=true`, which has no Flux equivalent for a Kustomization —
+# the namespace has to be a manifest like any other. Labels match the live
+# namespace, which carries only the default `kubernetes.io/metadata.name`.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: arc-systems

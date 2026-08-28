@@ -1,0 +1,4 @@
+docker run --rm -it \
+  -v $PWD:$PWD \
+  -w $PWD \
+  hashicorp/terraform:latest $@

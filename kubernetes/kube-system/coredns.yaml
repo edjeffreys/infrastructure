@@ -1,0 +1,57 @@
+# A partial patch of the CoreDNS Deployment that Talos installs and owns — not
+# a Deployment this repo creates. The shape below is Flux's documented recipe
+# for customising a pre-installed addon (fluxcd.io/flux/faq), and every part of
+# it is load-bearing:
+#
+#   ssa: merge        Without it kustomize-controller treats this file as the
+#                     full desired state. Its server-side dry-run then rejects
+#                     the object outright — "spec.selector: Required value ...
+#                     spec.selector: Invalid value: null: field is immutable" —
+#                     and the whole kube-system Kustomization goes NotReady.
+#                     ArgoCD tolerated the same file because `ServerSideApply=true`
+#                     merged it; Flux needs to be told.
+#   prune: disabled   Belt and braces alongside `prune: false` on the
+#                     Kustomization. Flux's inventory lists this as a Deployment
+#                     it applied, so a prune would delete cluster DNS rather
+#                     than just drop the patch.
+#   selector          Immutable, and identical to the live value. Supplying it
+#                     changes nothing; omitting it is what made the merged
+#                     object invalid.
+#   containers: []    Required for the merge to proceed. It claims ownership of
+#                     no container entries, so the image and args Talos manages
+#                     are left alone — which is the entire point of keeping this
+#                     a partial patch.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coredns
+  namespace: kube-system
+  annotations:
+    kustomize.toolkit.fluxcd.io/ssa: merge
+    kustomize.toolkit.fluxcd.io/prune: disabled
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      k8s-app: kube-dns
+  template:
+    metadata:
+      labels:
+        k8s-app: kube-dns
+    spec:
+      containers: []
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-type
+                    operator: NotIn
+                    values: ["pia"]
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              k8s-app: kube-dns

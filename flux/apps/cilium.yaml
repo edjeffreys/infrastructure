@@ -1,0 +1,44 @@
+# Only ./kubernetes/cilium/policies, exactly as the ArgoCD Application had it.
+# The rest of kubernetes/cilium/ stays outside GitOps on purpose: cilium-values.yaml
+# is bootstrap Helm values (Cilium is the CNI — a controller that needs the
+# network running cannot own the network), and hubble-relay-tailscale.yaml is
+# staged, not live. See the README there.
+#
+# All four manifests are CiliumClusterwideNetworkPolicy, which is cluster-scoped.
+# That is why the Application's `destination.namespace: kube-system` was only an
+# anchor, and why no `namespace:` is set here — a kustomize `namespace:` would be
+# applied to these CRs, since kustomize has no way to know the kind is
+# cluster-scoped, and would silently namespace a clusterwide policy.
+#
+# This Kustomization owns `default-deny`, which denies both directions for every
+# endpoint outside kube-system, kube-public, kube-node-lease and cilium-secrets —
+# flux-system included. Flux therefore manages the policy that governs its own
+# egress to GitHub, and a bad reconcile here can lock the controllers out of the
+# source they would need to fix it. Recovery is by hand and out of band:
+#
+#     kubectl delete ccnp default-deny          # restores cluster-wide default-allow
+#     kubectl -n flux-system delete cnp --all   # if Flux's own policies are the problem
+#
+# `flux-system`'s own policies are deliberately self-managed elsewhere
+# (flux/apps/flux-system.yaml) and are not in this path.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: cilium
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./kubernetes/cilium/policies
+  prune: true
+  wait: true
+  timeout: 5m
+  # Kept permanently, unlike the rest of the migration where this was flipped
+  # back to the default in wave 15. Under MirrorPrune, deleting this
+  # Kustomization takes default-deny and the three allow-* policies with it,
+  # silently returning the whole cluster to default-allow — a change of security
+  # posture rather than an outage, so nothing would break and nothing would page.
+  # That is exactly the failure worth making impossible by accident.
+  deletionPolicy: Orphan
+  sourceRef:
+    kind: GitRepository
+    name: infrastructure

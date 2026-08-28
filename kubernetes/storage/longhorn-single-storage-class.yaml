@@ -1,0 +1,44 @@
+---
+# Single-replica Longhorn, for workloads that already replicate their own data.
+#
+# CloudNativePG replicates at the PostgreSQL layer: a Cluster with instances: 2
+# keeps two full copies of the database, streamed between pods. Putting that on
+# the default `longhorn` class (numberOfReplicas: 2) gives four copies of the
+# same data, and — because every worker VM sits on the single Proxmox physical
+# disk — four writes to one spindle for every commit. The CNPG docs are explicit
+# about this: "defining additional replicas at the storage level can lead to
+# write amplification, unnecessarily increasing disk I/O and space usage", and
+# recommend reducing block-storage replicas to one.
+#
+# dataLocality: best-effort pairs with numberOfReplicas: 1 to give CNPG the
+# shared-nothing local storage it actually wants — the single replica follows
+# the pod onto its own node instead of being read across VXLAN. Longhorn leaves
+# the replica where it is if the node has no room, so this degrades quietly
+# rather than failing to schedule.
+#
+# Everything else mirrors the chart-generated `longhorn` class. Keep the two in
+# step: `numberOfReplicas`, `dataLocality` and the volume expansion flag are the
+# only intended differences.
+#
+# StorageClass parameters are immutable and a PVC cannot change class in place,
+# so switching an existing volume to this one is a two-step job: point the
+# manifest here for anything created from now on, and use the Longhorn API's
+# updateReplicaCount/updateDataLocality actions on volumes that already exist.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: longhorn-single
+provisioner: driver.longhorn.io
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+allowVolumeExpansion: true
+parameters:
+  backupTargetName: "default"
+  dataEngine: "v1"
+  dataLocality: "best-effort"
+  disableRevisionCounter: "true"
+  fromBackup: ""
+  fsType: "ext4"
+  numberOfReplicas: "1"
+  staleReplicaTimeout: "30"
+  unmapMarkSnapChainRemoved: "ignored"

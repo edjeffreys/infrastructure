@@ -1,0 +1,44 @@
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: storj-tls
+  namespace: storj
+spec:
+  secretName: storj-tls
+  issuerRef:
+    name: letsencrypt
+    kind: ClusterIssuer
+  dnsNames:
+    - storj.skaal.dev
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: storj
+  namespace: storj
+spec:
+  type: ExternalName
+  externalName: truenas.mng.skaal.lan
+  ports:
+    - port: 20909
+      targetPort: 20909
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: storj
+  namespace: storj
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`storj.skaal.dev`)
+      kind: Rule
+      services:
+        - name: storj
+          port: 20909
+  tls:
+    secretName: storj-tls

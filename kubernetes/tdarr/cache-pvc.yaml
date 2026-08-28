@@ -1,0 +1,25 @@
+---
+# Transcode cache. Deliberately on the `nfs` storage class rather than longhorn:
+# the node writes a full working copy of every file it processes (tens of GB for
+# a 4K title) and longhorn's 2 replicas would put every one of those bytes on
+# the single Proxmox physical disk twice — the contention pattern CLAUDE.md
+# warns about. Sending it to TrueNAS instead costs network bandwidth and keeps
+# the disk free for everything else.
+#
+# RWX because both the server and the node mount it; the node writes, and the
+# server needs to see the results to complete a job.
+#
+# Stays at the top level rather than under server/ or node/: it is the one
+# volume both components mount.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tdarr-cache
+  namespace: tdarr
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: nfs
+  resources:
+    requests:
+      storage: 500Gi

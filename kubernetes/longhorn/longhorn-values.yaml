@@ -1,0 +1,101 @@
+defaultSettings:
+  # best-effort, not disabled: Longhorn will try to keep one replica on the same
+  # node as the pod using the volume, and silently leaves the replica where it is
+  # if the node has no room. There is no redundancy cost to that here — every
+  # worker VM sits on the one Proxmox physical disk, so a "remote" replica is the
+  # same spindle reached over VXLAN rather than a second failure domain.
+  #
+  # It was `disabled`, which is how the Prometheus TSDB ended up with its only
+  # replica on talos-worker-pia-0 while the pod ran on talos-worker-2: every read
+  # of an mmap'd chunk became a cross-node round-trip. That is the per-fault cost
+  # behind NodeMemoryMajorPagesFaults (see the kubeApiServer block in
+  # kubernetes/monitoring/kube-prometheus-stack-values.yaml for the fault count).
+  #
+  # NOTE: this is the default for volumes created from here on. Longhorn stamps
+  # spec.dataLocality onto a Volume at creation and does not revisit it, so
+  # existing volumes keep whatever they were made with and must be updated
+  # individually — they read `disabled`, not `ignored`, so they do not follow
+  # this setting.
+  defaultDataLocality: best-effort
+  replicaAutoBalance: least-effort
+  storageMinimalAvailablePercentage: 10
+  # Allow instance managers and engine images to run on PIA nodes
+  taintToleration: "node-type=pia:NoExecute"
+  # Kubernetes leaves pods Terminating forever on an unreachable node: it
+  # cannot tell "node dead" from "node partitioned", so it will not risk
+  # force-deleting a pod holding an RWO volume. Longhorn does know whether
+  # the volume is safely detached, so let it break the deadlock. Default
+  # ("do-nothing") stranded every workload when talos-worker-0 died.
+  nodeDownPodDeletionPolicy: delete-both-statefulset-and-deployment-pod
+  # Applies only to volumes created through the Longhorn UI; PVC-provisioned
+  # volumes take numberOfReplicas from the StorageClass below. Set to match so
+  # the two paths cannot disagree. Format is per-data-engine JSON.
+  defaultReplicaCount: '{"v1":"2","v2":"2"}'
+  # Longhorn volumes are thin-provisioned: blocks freed inside the filesystem
+  # are not returned to the disk until the volume is trimmed. Prometheus churns
+  # its TSDB constantly, so its 20Gi volume had grown to 22.2GB actual against
+  # an 8GB retention budget — 16GB of dead space on the single physical disk.
+  # With this false (the default), a trim also cannot reclaim blocks held by
+  # snapshots already marked removed.
+  removeSnapshotsDuringFilesystemTrim: true
+
+longhornManager:
+  tolerations:
+    - key: node-type
+      operator: Equal
+      value: pia
+      effect: NoExecute
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+
+longhornDriver:
+  tolerations:
+    - key: node-type
+      operator: Equal
+      value: pia
+      effect: NoExecute
+
+# Restrict replica scheduling to standard nodes only
+longhornUI:
+  nodeSelector:
+    node-type: standard
+
+persistence:
+  # 2, not 3. Every worker VM sits on the single Proxmox physical disk, so a
+  # replica count of N amplifies every write N times onto that one spindle —
+  # the main source of I/O contention here. Two replicas still survive any
+  # single node loss (which is the only failure this actually protects
+  # against; a third copy on the same physical disk buys nothing if that disk
+  # dies) while cutting Longhorn write traffic by a third.
+  #
+  # NOTE: StorageClass parameters are immutable. Changing this does not patch
+  # the existing "longhorn" StorageClass — it must be deleted so ArgoCD can
+  # recreate it. Deleting a StorageClass does not affect already-bound
+  # PVs/PVCs. Existing volumes also keep their original replica count and
+  # must be patched individually.
+  defaultClassReplicaCount: 2
+  defaultNodeSelector:
+    enable: false
+
+metrics:
+  serviceMonitor:
+    enabled: true
+    # longhorn-backend is the third-largest scrape target in the TSDB: 10,252 of
+    # its ~14,300 series are histogram buckets from client-go's own internals
+    # (rest_client latency, workqueue duration), not from Longhorn's storage
+    # metrics. Nothing here queries them — kubernetes/longhorn/prometheusrule.yaml
+    # alerts on longhorn_volume_*, longhorn_node_* and longhorn_disk_* only.
+    #
+    # They were worth dropping because Prometheus mmaps its TSDB and runs on an
+    # 8GB node, where the block set no longer fits in page cache; that is what
+    # fired NodeMemoryMajorPagesFaults on talos-worker-2 in Aug 2026. See the
+    # matching kubeApiServer block in
+    # kubernetes/monitoring/kube-prometheus-stack-values.yaml.
+    #
+    # Only `_bucket` goes; `_count`/`_sum` stay, so rates and averages still work.
+    metricRelabelings:
+      - action: drop
+        sourceLabels: [__name__]
+        regex: longhorn_(rest_client_rate_limiter_latency_seconds|rest_client_request_latency_seconds|workqueue_work_duration_seconds|workqueue_queue_duration_seconds)_bucket

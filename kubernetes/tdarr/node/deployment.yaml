@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tdarr-node
+  namespace: tdarr
+spec:
+  replicas: 1
+  strategy:
+    # RWO longhorn PVC, and — more restrictively — the GPU. The plugin
+    # advertises 2 i915 devices and plex permanently holds one, so exactly one
+    # is free. A RollingUpdate would need the new pod scheduled while the old
+    # one still holds that device, and would deadlock: new pod Pending on the
+    # resource, old pod never terminated because the new one never goes Ready.
+    type: Recreate
+  selector:
+    matchLabels:
+      app: tdarr-node
+  template:
+    metadata:
+      labels:
+        app: tdarr-node
+    spec:
+      # The worker. Pinned to the one node holding the passed-through iGPU —
+      # same constraint as plex, and the reason the device plugin advertises
+      # gpu.intel.com/i915: 2 rather than 1.
+      nodeSelector:
+        gpu: intel
+      containers:
+        - name: tdarr-node
+          image: ghcr.io/haveagitgat/tdarr_node:2.86.01@sha256:7542459ac5ed5cd299600530e9625b9d590629d5dc391c0016773f5d6aa3fe75
+          env:
+            - name: PUID
+              value: "3000"
+            - name: PGID
+              value: "3000"
+            - name: TZ
+              value: "Etc/UTC"
+            - name: nodeName
+              value: "worker-0-quicksync"
+            # Reached through the ClusterIP service; the node opens the
+            # connection, then the server dials back to this pod's IP on 8267,
+            # which is why the intra-namespace policy has to allow both
+            # directions.
+            - name: serverIP
+              value: "tdarr-server"
+            - name: serverPort
+              value: "8266"
+            - name: nodePort
+              value: "8267"
+            - name: inContainer
+              value: "true"
+            - name: ffmpegVersion
+              value: "7"
+            - name: LIBVA_DRIVER_NAME
+              value: "iHD"
+          ports:
+            - name: node
+              containerPort: 8267
+          resources:
+            requests:
+              memory: 1Gi
+              cpu: 500m
+            limits:
+              memory: 4Gi
+              # worker-0 has 3950m allocatable and plex already requests 1000m.
+              # Kept well under the remainder: QuickSync does the heavy lifting,
+              # but ffmpeg filters, muxing and health checks are still CPU work,
+              # and starving plex's live transcodes to speed up a background
+              # library job is the wrong trade.
+              cpu: 2000m
+              gpu.intel.com/i915: 1
+          volumeMounts:
+            - name: config
+              mountPath: /app/configs
+            - name: config
+              subPath: logs
+              mountPath: /app/logs
+            - name: media
+              mountPath: /data
+            - name: cache
+              mountPath: /temp
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: tdarr-node-config
+        - name: media
+          persistentVolumeClaim:
+            claimName: tdarr-media
+        - name: cache
+          persistentVolumeClaim:
+            claimName: tdarr-cache

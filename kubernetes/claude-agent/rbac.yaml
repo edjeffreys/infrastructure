@@ -1,0 +1,120 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: claude-agent
+  namespace: claude-agent
+
+---
+# The built-in "view" ClusterRole is the primary grant. It is used deliberately:
+# upstream excludes Secrets from it by design, so "read everything except
+# secrets" comes for free rather than from an enumeration that drifts.
+#
+# It is an aggregated role, so an operator installed later could in principle
+# widen it. Re-check after any operator install:
+#   kubectl auth can-i get secrets -A \
+#     --as=system:serviceaccount:claude-agent:claude-agent
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: claude-agent-view
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+  - kind: ServiceAccount
+    name: claude-agent
+    namespace: claude-agent
+
+---
+# "view" only covers namespaced resources. Everything cluster-scoped that
+# matters for diagnosing this cluster has to be added explicitly.
+#
+# Rule of the file: never grant "secrets", and never grant resources: ["*"] on
+# the core ("") apiGroup — secrets live there. Non-core groups are safe to
+# wildcard because no group below defines a Secret-like resource.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: claude-agent-cluster-read
+rules:
+  - apiGroups: [""]
+    resources:
+      - nodes
+      - nodes/status
+      - persistentvolumes
+      - namespaces
+      - events
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: ["metrics.k8s.io"]
+    resources: ["nodes", "pods"]
+    verbs: ["get", "list"]
+
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: ["apiregistration.k8s.io"]
+    resources: ["apiservices"]
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: ["admissionregistration.k8s.io"]
+    resources: ["validatingwebhookconfigurations", "mutatingwebhookconfigurations"]
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: ["scheduling.k8s.io"]
+    resources: ["priorityclasses"]
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: ["node.k8s.io"]
+    resources: ["runtimeclasses"]
+    verbs: ["get", "list", "watch"]
+
+  # Lets the agent answer "what am I actually allowed to do?" without guessing.
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["clusterroles", "clusterrolebindings", "roles", "rolebindings"]
+    verbs: ["get", "list", "watch"]
+
+  # Operator CRDs. All read-only, none of them carry credential material —
+  # OnePasswordItem holds only an op:// itemPath, not the resolved value.
+  - apiGroups:
+      - cilium.io
+      - argoproj.io
+      - longhorn.io
+      - postgresql.cnpg.io
+      - monitoring.coreos.com
+      - tailscale.com
+      - onepassword.com
+      - cert-manager.io
+      - acme.cert-manager.io
+      - actions.github.com
+      - external-secrets.io
+      # Flux. Read-only like the rest: a Kustomization or HelmRelease carries
+      # no credential material, and without these `flux get all -A` and every
+      # migration check in this repo return nothing but Forbidden.
+      - source.toolkit.fluxcd.io
+      - kustomize.toolkit.fluxcd.io
+      - helm.toolkit.fluxcd.io
+      - notification.toolkit.fluxcd.io
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: claude-agent-cluster-read
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: claude-agent-cluster-read
+subjects:
+  - kind: ServiceAccount
+    name: claude-agent
+    namespace: claude-agent

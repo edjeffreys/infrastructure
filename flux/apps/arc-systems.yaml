@@ -1,0 +1,54 @@
+# The only OCI chart source in the tree. ArgoCD reached ghcr.io through a
+# `repo-ghcr-arc` repository Secret, applied by a manual `op inject` step. Flux
+# needs no credentials here: these charts are public — an anonymous ghcr.io
+# token pulls the tag list fine — so this HelmRepository deliberately has no
+# `secretRef`, and that bootstrap step retired with ArgoCD in wave 14.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: actions-runner-controller
+  namespace: flux-system
+spec:
+  type: oci
+  interval: 1h
+  url: oci://ghcr.io/actions/actions-runner-controller-charts
+
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: arc-systems
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./kubernetes/arc-systems
+  prune: true
+  wait: true
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: infrastructure
+
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: arc-systems
+  namespace: arc-systems
+spec:
+  interval: 30m
+  # Matches the live Deployment `arc-systems-gha-rs-controller`.
+  releaseName: arc-systems
+  chart:
+    spec:
+      chart: gha-runner-scale-set-controller
+      version: "0.14.1"
+      sourceRef:
+        kind: HelmRepository
+        name: actions-runner-controller
+        namespace: flux-system
+  # No valuesFrom, matching the ArgoCD Application: its chart source had no
+  # `helm.valueFiles` block, so kubernetes/arc-systems/controller-values.yaml
+  # has never been wired to this chart. That file is a single comment line and
+  # is referenced nowhere; the controller runs on chart defaults. Left as-is
+  # rather than quietly changing the controller's config during a migration.

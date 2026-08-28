@@ -1,0 +1,17 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: pinchflat
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./kubernetes/pinchflat
+  prune: true
+  # Ready means "applied *and* healthy", not just "applied". Without this the
+  # FluxResourceNotReady alert could only ever catch a failed apply, which is
+  # not what went wrong the last time an app broke.
+  wait: true
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: infrastructure

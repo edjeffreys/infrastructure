@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: radarr
+  namespace: arr
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: radarr
+  template:
+    metadata:
+      labels:
+        app: radarr
+    spec:
+      nodeSelector:
+        node-type: pia
+      tolerations:
+        - key: node-type
+          value: pia
+
+      containers:
+        - name: radarr
+          image: ghcr.io/hotio/radarr:release-6.3.0.10514@sha256:37b499735d8e915f47548a1a7d1af7998892fd6749855b43086f05fb2f277801
+          env:
+            - name: PUID
+              value: "3000"
+            - name: PGID
+              value: "3000"
+            # Postgres instead of the SQLite files that used to live on the
+            # config volume. /config is still used for config.xml, logs,
+            # MediaCover and Backups, so the PVC stays.
+            #
+            # Radarr needs two databases: the main one and a separate log one.
+            # Both are declared in ../postgres/databases.yaml.
+            - name: RADARR__POSTGRES__HOST
+              value: arr-postgres-rw
+            - name: RADARR__POSTGRES__PORT
+              value: "5432"
+            - name: RADARR__POSTGRES__MAINDB
+              value: radarr-main
+            - name: RADARR__POSTGRES__LOGDB
+              value: radarr-log
+            - name: RADARR__POSTGRES__USER
+              valueFrom:
+                secretKeyRef:
+                  name: arr-postgres-app
+                  key: username
+            - name: RADARR__POSTGRES__PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: arr-postgres-app
+                  key: password
+          ports:
+            - containerPort: 7878
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: 7878
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: 100m
+            limits:
+              memory: 1Gi
+              cpu: 1000m
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: radarr-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: media

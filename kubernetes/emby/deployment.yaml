@@ -1,0 +1,70 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: emby
+  namespace: emby
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: emby
+  template:
+    metadata:
+      labels:
+        app: emby
+    spec:
+      nodeSelector:
+        node-type: standard
+      containers:
+        - name: emby
+          image: emby/embyserver:latest@sha256:734a6f03c7c783a9e566b08d09a2b6376f41229ff29f032a7e00302e0be98f8a
+          ports:
+            - containerPort: 8096
+          env:
+            - name: UID
+              value: "3003"
+            - name: GID
+              value: "950"
+            - name: TZ
+              value: Europe/London
+          readinessProbe:
+            httpGet:
+              path: /System/Info/Public
+              port: 8096
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: 512Mi
+              cpu: 500m
+            limits:
+              memory: 2Gi
+              cpu: 2000m
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: media
+              mountPath: /media/youtube
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: emby-config
+        - name: media
+          persistentVolumeClaim:
+            claimName: emby-media
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: emby
+  namespace: emby
+spec:
+  selector:
+    app: emby
+  ports:
+    - port: 8096
+      targetPort: 8096

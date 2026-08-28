@@ -1,0 +1,57 @@
+---
+# TrueNAS uses a self-signed certificate on the LAN — skip verification.
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: truenas
+  namespace: truenas
+spec:
+  insecureSkipVerify: true
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: truenas
+  namespace: truenas
+spec:
+  type: ExternalName
+  externalName: truenas.mng.skaal.lan
+  ports:
+    - port: 443
+      targetPort: 443
+
+---
+# cert-manager still issues the certificate; IngressRoute references the resulting secret.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: truenas-tls
+  namespace: truenas
+spec:
+  secretName: truenas-tls
+  issuerRef:
+    name: letsencrypt
+    kind: ClusterIssuer
+  dnsNames:
+    - truenas.skaal.dev
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: truenas
+  namespace: truenas
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`truenas.skaal.dev`)
+      kind: Rule
+      services:
+        - name: truenas
+          port: 443
+          scheme: https
+          serversTransport: truenas
+  tls:
+    secretName: truenas-tls

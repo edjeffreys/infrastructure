@@ -1,0 +1,23 @@
+# Second-device cluster credentials. Live in the cluster since 26 Aug 2026 but
+# absent from this repo until now — nothing reconciled them, and CLAUDE.md
+# described a `kubernetes/cluster-access/` directory that did not exist. A
+# cluster-admin binding is not a thing to leave unmanaged, so this adopts it.
+#
+# No kustomization.yaml under this path: there is no `-values.yaml` to keep out
+# of autodetect, so every file there is already a valid manifest.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: cluster-access
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./kubernetes/cluster-access
+  # Pruning is the revocation path, so it stays on: removing a file here is
+  # meant to remove the credential from the cluster.
+  prune: true
+  wait: true
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: infrastructure

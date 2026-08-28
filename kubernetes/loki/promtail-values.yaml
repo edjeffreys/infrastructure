@@ -1,0 +1,14 @@
+config:
+  clients:
+    - url: http://loki.loki.svc.cluster.local:3100/loki/api/v1/push
+
+# Run on all nodes including PIA nodes
+tolerations:
+  - key: node-type
+    operator: Equal
+    value: pia
+
+serviceMonitor:
+  enabled: true
+  labels:
+    release: kube-prometheus-stack

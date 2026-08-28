@@ -1,0 +1,150 @@
+---
+# One-shot: migrate the copied Plex SQLite database into plex-postgres.
+#
+# Applied by hand (see copy-source-db.yaml for why one-shot Jobs stay out of
+# kubernetes/). Run AFTER copy-source-db.yaml and BEFORE the deployment cutover.
+#
+#   kubectl apply -f scripts/plex-postgres/migrate.yaml
+#   kubectl -n plex logs -f job/plex-migrate
+#
+# WHY THIS EXISTS RATHER THAN LETTING THE CONTAINER AUTO-MIGRATE
+#
+# The image's automatic migration cannot fire for anyone with existing data.
+# In /etc/cont-init.d/39-plex-postgresql the order is:
+#
+#     init_schema        # runs plex_schema.sql AND seed_data.sql
+#     check_and_migrate  # decides whether to migrate
+#     init_sqlite_schema # deletes /config's SQLite, writes a shadow stub
+#
+# seed_data.sql contains `INSERT INTO plex.accounts (...)`, so by the time
+# check_and_migrate runs, accounts is never empty. It tests:
+#
+#     if pg_count > 0 || pg_sections > 0 || pg_accounts > 0 -> pg_has_data=1
+#     if pg_has_data && MIGRATION_INTERACTIVE != 1:
+#         "Non-interactive mode: skipping migration (PostgreSQL has data)"
+#
+# MIGRATION_INTERACTIVE=1 prompts on stdin, which is not drivable here. So the
+# container path always skips, then destroys /config's SQLite regardless.
+#
+# This Job calls migrate_sqlite_to_pg() directly instead, which is the function
+# check_and_migrate would have called. It reads only the copy on plex-sourcedb;
+# the live plex-config volume is not mounted at all.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: plex-migration-egress
+  namespace: plex
+spec:
+  endpointSelector:
+    matchLabels:
+      app: plex-migration
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:cnpg.io/cluster: plex-postgres
+      toPorts:
+        - ports:
+            - port: "5432"
+
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: plex-postgres-migration-ingress
+  namespace: plex
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:cnpg.io/cluster: plex-postgres
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:app: plex-migration
+      toPorts:
+        - ports:
+            - port: "5432"
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: plex-migrate
+  namespace: plex
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: plex-migration
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        node-type: standard
+      containers:
+        - name: migrate
+          image: ghcr.io/cgnl/plex-postgresql-plexinc:v1.3.12@sha256:733a61bd772d9184f18528b4963f19a4036e72313d6b04e4f50aacb0440e3f0b
+          command:
+            - bash
+            - -c
+            - |
+              set -uo pipefail
+              export SHIM_DIR=/usr/local/lib/plex-postgresql
+              export PG_HOST="$PLEX_PG_HOST" PG_PORT="$PLEX_PG_PORT"
+              export PG_DATABASE="$PLEX_PG_DATABASE" PG_USER="$PLEX_PG_USER"
+              export PG_SCHEMA="$PLEX_PG_SCHEMA"
+              export PGHOST="$PLEX_PG_HOST" PGPORT="$PLEX_PG_PORT"
+              export PGDATABASE="$PLEX_PG_DATABASE" PGUSER="$PLEX_PG_USER"
+              export PGPASSWORD="$PLEX_PG_PASSWORD"
+              export SQLITE_DB=/source-db/com.plexapp.plugins.library.db
+
+              echo "=== source database (the copy, never the live volume) ==="
+              ls -l /source-db/
+              echo -n "metadata_items in source: "
+              sqlite3 "$SQLITE_DB" "SELECT COUNT(*) FROM metadata_items;"
+
+              echo "=== resetting the target schema ==="
+              # The failed first attempt left a part-built schema behind.
+              # Start from nothing so the migration is unambiguous.
+              psql -v ON_ERROR_STOP=1 -c "DROP SCHEMA IF EXISTS ${PG_SCHEMA} CASCADE;"
+              psql -v ON_ERROR_STOP=1 -c "CREATE SCHEMA ${PG_SCHEMA} AUTHORIZATION ${PG_USER};"
+
+              echo "=== migrating ==="
+              source "$SHIM_DIR/migrate_lib.sh"
+              migrate_sqlite_to_pg
+              rc=$?
+
+              echo "=== result ==="
+              psql -c "SELECT relname, n_live_tup FROM pg_stat_user_tables
+                        WHERE schemaname='${PG_SCHEMA}' AND n_live_tup > 0
+                        ORDER BY n_live_tup DESC LIMIT 15"
+              exit $rc
+          env:
+            - name: PLEX_PG_HOST
+              value: plex-postgres-rw
+            - name: PLEX_PG_PORT
+              value: "5432"
+            - name: PLEX_PG_DATABASE
+              value: plex
+            - name: PLEX_PG_SCHEMA
+              value: plex
+            - name: PLEX_PG_USER
+              valueFrom:
+                secretKeyRef:
+                  name: plex-postgres-app
+                  key: username
+            - name: PLEX_PG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: plex-postgres-app
+                  key: password
+          volumeMounts:
+            # Read-write: check_and_migrate and migrate_sqlite_to_pg both open
+            # this with sqlite3, and Plex's databases are in WAL mode, which
+            # SQLite cannot open on a read-only mount. This is a copy, so
+            # writability costs nothing.
+            - name: sourcedb
+              mountPath: /source-db
+      volumes:
+        - name: sourcedb
+          persistentVolumeClaim:
+            claimName: plex-sourcedb
