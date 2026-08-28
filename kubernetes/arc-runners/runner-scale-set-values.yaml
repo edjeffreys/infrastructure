@@ -18,11 +18,8 @@ maxRunners: 4
 # in the runner pod.
 containerMode:
   type: "kubernetes"
-  # longhorn (ReadWriteOnce): ARC's Kubernetes-mode hook pins the
-  # job-container pod to the runner pod's node, so RWO is safe. nfs/RWX was
-  # tried first and dropped - TrueNAS denied the mount for this dynamically
-  # provisioned claim ("access denied by server"), unlike the repo's other
-  # nfs PVCs, which are all pre-existing.
+  # longhorn, not nfs: ARC's Kubernetes-mode hook pins the job-container pod
+  # to the runner pod's node, so ReadWriteOnce is safe.
   kubernetesModeWorkVolumeClaim:
     accessModes: ["ReadWriteOnce"]
     storageClassName: "longhorn"
