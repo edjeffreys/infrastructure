@@ -122,11 +122,40 @@ ghcr.io. Both retired with it: Flux needs only the git auth Secret, because the
 ARC charts it pulls from ghcr.io are public and its `HelmRepository` carries no
 `secretRef`.
 
+### Commit and PR conventions
+
+Conventional Commits: `<type>(<scope>): <subject>`, imperative mood, lower case
+after the colon. Types in use are `feat`, `fix`, `chore`, `docs`, `refactor` and
+`ci`. Scope is the app or subsystem the change belongs to and matches the
+directory name where there is one — `feat(cluster-access)`, `fix(kube-system)`,
+`chore(flux)`. PR titles follow the same form, because a squash merge makes the
+PR title the commit message.
+
+**This is written down because the evidence for it was destroyed.** The
+convention used to be self-documenting: 950 commits demonstrated it, and anyone
+— human or tool — could infer it from `git log`. The repo was recreated from a
+single squashed commit in Aug 2026, so `git log` now shows exactly one
+`Initial commit` and teaches nothing. Renovate inferred it too, which is how the
+loss first surfaced: see the `semanticCommits` note in `renovate.json`.
+
+The old history is not gone, only moved — `edjeffreys/infrastructure-archive`,
+private, and it must stay private (it carries credentials in its history).
+Reach for it when you need to know *why* something is the way it is; this repo
+cannot answer that question any more.
+
 ### Renovate
 
 `renovate.json` at root. The `flux` manager watches `flux/**`, raises PRs for
 chart bumps. Pin chart `version` to an explicit value (never `*`). The `argocd`
 manager was removed in wave 14.
+
+`semanticCommits` is pinned to `enabled` rather than left at its default of
+`auto`. Auto-detection reads recent commits to decide whether to prefix PR
+titles, so the squash left it nothing to detect and `chore(deps):` quietly
+disappeared. Nothing broke — there is no commitlint and no release automation —
+but the titles stopped matching the convention above. Pin settings that
+Renovate would otherwise infer: this is the same class of silent failure as the
+ARC runner image going five releases stale.
 
 
 ---
