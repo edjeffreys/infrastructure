@@ -46,10 +46,28 @@ spec:
               value: homelab
             - name: REPO_URL
               value: https://github.com/edjeffreys/infrastructure
+            # Commits are authored by the repo owner, not by an invented
+            # identity. `claude-agent@users.noreply.github.com` was not a
+            # placeholder — that address resolves to a real, unrelated GitHub
+            # account, so every commit the agent made was attributed to a
+            # stranger in permanent history.
+            #
+            # Claude's contribution is recorded with a `Co-Authored-By:` trailer
+            # on the commit message instead, which is the correct mechanism and
+            # does not claim authorship.
+            #
+            # Committer is set as well as author. Git takes the committer from
+            # `user.name`/`user.email` rather than GIT_AUTHOR_*, so setting only
+            # the author leaves the committer falling back to whatever global
+            # config the image happens to carry.
             - name: GIT_AUTHOR_NAME
-              value: claude-agent
+              value: Ed Jeffreys
             - name: GIT_AUTHOR_EMAIL
-              value: claude-agent@users.noreply.github.com
+              value: ed@edjeffreys.com
+            - name: GIT_COMMITTER_NAME
+              value: Ed Jeffreys
+            - name: GIT_COMMITTER_EMAIL
+              value: ed@edjeffreys.com
             - name: GH_TOKEN
               valueFrom:
                 secretKeyRef:
