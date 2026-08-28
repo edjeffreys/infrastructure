@@ -1,15 +1,9 @@
 name: Build claude-agent image
 
-# Replaces the manual `docker buildx build --push` step in
-# kubernetes/claude-agent/README.md. Runs as a Kubernetes-mode ARC job pod
-# (kubernetes/arc-runners/runner-scale-set-values.yaml sets containerMode)
-# using Kaniko, which builds daemonless — so this still needs no privileged
-# dind sidecar in arc-runners.
-#
-# No checkout step: Kaniko's --context accepts a git URL directly and clones
-# it itself, which sidesteps actions/checkout entirely — the executor image
-# is a scratch/busybox base with no git binary and no Node.js for JS actions
-# to run against.
+# ARC runners have no Docker daemon; Kaniko builds daemonless as a
+# Kubernetes-mode job-container pod (see runner-scale-set-values.yaml).
+# No checkout step: the executor image has no git or Node.js, so Kaniko
+# clones its --context git URL itself instead.
 
 on:
   push:
@@ -23,8 +17,8 @@ permissions:
   contents: read
   packages: write
 
-# A second push while a build is in flight should still get its own image,
-# not cancel the one in progress and leave :latest built from neither commit.
+# Don't cancel a build for a newer push - it should still finish, not leave
+# :latest built from neither commit.
 concurrency:
   group: build-claude-agent-${{ github.ref }}
   cancel-in-progress: false
@@ -33,17 +27,13 @@ jobs:
   build:
     runs-on: arc-runners
     container:
-      # debug tag ships a busybox shell; the plain executor image is
-      # scratch-based and can't run the auth-setup step below at all.
+      # debug tag: the plain executor image is scratch-based, no shell.
       image: gcr.io/kaniko-project/executor:v1.24.0-debug
     steps:
       - name: Build and push
         run: |
           set -eu
 
-          # ghcr.io push auth. GITHUB_TOKEN (not the classic PAT the README's
-          # manual path needs) works here because it's scoped to this repo
-          # and Actions requests packages:write on it above.
           AUTH=$(printf '%s:%s' "${{ github.actor }}" "${{ secrets.GITHUB_TOKEN }}" | base64 | tr -d '\n')
           mkdir -p /kaniko/.docker
           cat <<EOF > /kaniko/.docker/config.json
@@ -60,6 +50,5 @@ jobs:
             --destination="ghcr.io/edjeffreys/claude-agent:${SHA_TAG}" \
             --push-retry 5
         env:
-          # Kaniko's own git-context clone, not actions/checkout.
           GIT_USERNAME: ${{ github.actor }}
           GIT_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
