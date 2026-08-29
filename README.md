@@ -77,7 +77,7 @@ kubernetes/            — one directory per app, named after its Kustomization
   tdarr/                 — transcoding server + GPU and CPU nodes
   traefik/               — Traefik ingress controller + its Cilium LB IP pool
   truenas/               — TrueNAS UI ingress
-images/claude-agent/     — container image built by GitHub Actions via Kaniko
+images/claude-agent/     — container image built by GitHub Actions via BuildKit
 scripts/                 — validation checks, migrations, operational helpers
 talos/                   — Talos node configuration only
   talconfig.yaml         — talhelper cluster config (versions, nodes, patches)

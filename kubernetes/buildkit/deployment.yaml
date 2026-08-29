@@ -1,0 +1,71 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: buildkitd
+  namespace: buildkit
+spec:
+  replicas: 1
+  # RWO cache PVC — never two at once.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: buildkitd
+  template:
+    metadata:
+      labels:
+        app: buildkitd
+    spec:
+      nodeSelector:
+        node-type: standard
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        # Longhorn hands the volume over root-owned; uid 1000 cannot write its
+        # own cache without this. Same failure the ARC work volume had.
+        fsGroup: 1000
+        # RuntimeDefault blocks the syscalls rootless buildkitd uses to nest
+        # user namespaces. No AppArmor counterpart: Talos ships no AppArmor LSM.
+        seccompProfile:
+          type: Unconfined
+      containers:
+        - name: buildkitd
+          image: moby/buildkit:v0.32.2-rootless
+          args:
+            - --addr
+            - unix:///run/user/1000/buildkit/buildkitd.sock
+            - --addr
+            - tcp://0.0.0.0:1234
+            # Otherwise the daemon unshares a nested PID namespace, needing
+            # privileges the pod does not have. Costs build steps their sandbox.
+            - --oci-worker-no-process-sandbox
+          ports:
+            - name: grpc
+              containerPort: 1234
+          readinessProbe:
+            exec:
+              command: ["buildctl", "debug", "workers"]
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          livenessProbe:
+            exec:
+              command: ["buildctl", "debug", "workers"]
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          # The build runs here, not in the runner — every apt, npm and curl
+          # in the Dockerfile is this pod's CPU and memory.
+          resources:
+            requests:
+              memory: 512Mi
+              cpu: 200m
+            limits:
+              memory: 4Gi
+              cpu: 4000m
+          volumeMounts:
+            - name: cache
+              mountPath: /home/user/.local/share/buildkit
+      volumes:
+        - name: cache
+          persistentVolumeClaim:
+            claimName: buildkit-cache

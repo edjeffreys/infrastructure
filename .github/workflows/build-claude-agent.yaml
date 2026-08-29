@@ -1,9 +1,9 @@
 name: Build claude-agent image
 
-# ARC runners have no Docker daemon; Kaniko builds daemonless as a
-# Kubernetes-mode job-container pod (see runner-scale-set-values.yaml).
-# No checkout step: the executor image has no git or Node.js, so Kaniko
-# clones its --context git URL itself instead.
+# The job container is only the buildctl client; the build runs on the
+# in-cluster buildkitd, which needs a seccomp exemption arc-runners must not
+# have (kubernetes/buildkit/README.md).
+# No checkout step: buildkit clones its --opt context git URL itself.
 
 on:
   push:
@@ -27,28 +27,33 @@ jobs:
   build:
     runs-on: arc-runners
     container:
-      # debug tag: the plain executor image is scratch-based, no shell.
-      image: gcr.io/kaniko-project/executor:v1.24.0-debug
+      # Keep in step with the daemon in kubernetes/buildkit/deployment.yaml —
+      # Renovate groups them so they land in one PR.
+      image: moby/buildkit:v0.32.2
     steps:
       - name: Build and push
         run: |
           set -eu
 
+          # buildctl forwards this to the daemon over the build session, so the
+          # token never reaches buildkitd's cache. DOCKER_CONFIG: HOME may be unset.
+          export DOCKER_CONFIG=/tmp/.docker
           AUTH=$(printf '%s:%s' "${{ github.actor }}" "${{ secrets.GITHUB_TOKEN }}" | base64 | tr -d '\n')
-          mkdir -p /kaniko/.docker
-          cat <<EOF > /kaniko/.docker/config.json
+          mkdir -p "${DOCKER_CONFIG}"
+          cat <<EOF > "${DOCKER_CONFIG}/config.json"
           {"auths":{"ghcr.io":{"auth":"${AUTH}"}}}
           EOF
 
           SHA_TAG="sha-$(echo "${GITHUB_SHA}" | head -c7)"
+          IMAGE=ghcr.io/edjeffreys/claude-agent
 
-          /kaniko/executor \
-            --context="${{ github.repositoryUrl }}#${{ github.ref }}#${{ github.sha }}" \
-            --context-sub-path=images/claude-agent \
-            --dockerfile=Dockerfile \
-            --destination="ghcr.io/edjeffreys/claude-agent:latest" \
-            --destination="ghcr.io/edjeffreys/claude-agent:${SHA_TAG}" \
-            --push-retry 5
-        env:
-          GIT_USERNAME: ${{ github.actor }}
-          GIT_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          # No credentials on the context URL: the repo is public. A private
+          # repo would need the token passed as a buildkit secret instead.
+          buildctl \
+            --addr tcp://buildkitd.buildkit:1234 \
+            build \
+            --frontend dockerfile.v0 \
+            --opt "context=https://github.com/${GITHUB_REPOSITORY}.git#${GITHUB_SHA}:images/claude-agent" \
+            --opt filename=Dockerfile \
+            --output "type=image,\"name=${IMAGE}:latest,${IMAGE}:${SHA_TAG}\",push=true" \
+            --progress plain
