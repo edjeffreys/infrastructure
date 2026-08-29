@@ -60,6 +60,11 @@ with a cert-manager `Certificate`) rather than widening the selector.
 
 ## Gotchas
 
+- **The daemon depends on a Talos setting, not just this directory.** Talos
+  defaults `user.max_user_namespaces` to 0; the worker patch in
+  `talos/talconfig.yaml` raises it. A worker rebuilt without it crashloops, and
+  CI then blames the *network* — Cilium's socket LB answers `operation not
+  permitted` for a ClusterIP whose only backend is unready.
 - **`--oci-worker-no-process-sandbox` is required.** Without it the daemon tries
   to unshare a nested PID namespace, which needs privileges the pod does not
   have. Build steps lose their own process sandbox; the pod's is unaffected.
