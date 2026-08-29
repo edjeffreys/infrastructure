@@ -1,0 +1,8 @@
+# Rootless buildkitd needs unconfined seccomp, which the cluster-default
+# baseline rejects. Confining that here keeps arc-runners baseline — README.md.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: buildkit
+  labels:
+    pod-security.kubernetes.io/enforce: privileged

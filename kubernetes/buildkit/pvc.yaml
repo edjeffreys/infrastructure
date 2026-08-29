@@ -1,0 +1,15 @@
+---
+# Layer cache. buildkit's default GC sizes itself from the filesystem it finds,
+# so this number is the cache bound and no gc config is needed.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: buildkit-cache
+  namespace: buildkit
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 10Gi

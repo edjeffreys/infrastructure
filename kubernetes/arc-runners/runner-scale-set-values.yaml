@@ -13,9 +13,9 @@ controllerServiceAccount:
 minRunners: 0
 maxRunners: 4
 
-# Lets a `container:` step run as its own pod via the Kubernetes API, so
-# Kaniko can build images (kubernetes/claude-agent) without a Docker daemon
-# in the runner pod.
+# Lets a `container:` step run as its own pod via the Kubernetes API. Only
+# build-claude-agent.yaml uses one, to hold the buildctl client that drives
+# the in-cluster buildkitd (kubernetes/buildkit) — no Docker daemon here.
 containerMode:
   type: "kubernetes"
   # longhorn, not nfs: ARC's Kubernetes-mode hook pins the job-container pod

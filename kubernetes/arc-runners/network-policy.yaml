@@ -32,3 +32,23 @@ spec:
     - toEntities:
         - world
         - kube-apiserver
+
+---
+# `world` above does not cover an in-cluster endpoint. Without this the build
+# hangs until buildctl times out, with nothing naming the network as the cause.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-buildkit-egress
+  namespace: arc-runners
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: buildkit
+            app: buildkitd
+      toPorts:
+        - ports:
+            - port: "1234"
+              protocol: TCP

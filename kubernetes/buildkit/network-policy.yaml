@@ -1,0 +1,56 @@
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: buildkit
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+
+---
+# The gRPC endpoint has no TLS and no auth, so this policy is the only thing
+# in front of it. Widen the selector and mTLS stops being optional — README.md.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-arc-runners-ingress
+  namespace: buildkit
+spec:
+  endpointSelector:
+    matchLabels:
+      app: buildkitd
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: arc-runners
+      toPorts:
+        - ports:
+            - port: "1234"
+              protocol: TCP
+
+---
+# Every RUN in a Dockerfile egresses from this pod, not from the runner that
+# asked for the build — so this is as broad as the runner's own world egress.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-world-egress
+  namespace: buildkit
+spec:
+  endpointSelector:
+    matchLabels:
+      app: buildkitd
+  egress:
+    - toEntities:
+        - world

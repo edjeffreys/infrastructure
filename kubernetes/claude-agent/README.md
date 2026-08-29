@@ -69,8 +69,9 @@ if you haven't.
 Built in CI: `.github/workflows/build-claude-agent.yaml` runs on a push to
 `master` that touches `images/claude-agent/**`, or on demand
 (`workflow_dispatch`) — including when Renovate bumps the `ARG` pins in the
-Dockerfile and merges. It runs as a Kubernetes-mode ARC job pod using Kaniko,
-which builds daemonless, so this still needs no Docker daemon in the runner
+Dockerfile and merges. It runs as a Kubernetes-mode ARC job pod holding only
+the `buildctl` client — the build itself happens in the in-cluster `buildkitd`
+(`kubernetes/buildkit/`), so this still needs no Docker daemon in the runner
 pod and no privileged dind sidecar — see `containerMode` in
 `kubernetes/arc-runners/runner-scale-set-values.yaml`. It pushes both
 `:latest` and a `:sha-<short-sha>` tag, authenticated with the workflow's own

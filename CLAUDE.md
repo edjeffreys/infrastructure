@@ -491,6 +491,7 @@ See `kubernetes/arc-systems/README.md` for the full setup and a diagnosis runboo
   - Scale set chart: `gha-runner-scale-set`
 - Runners are on standard (non-PIA) nodes, `minRunners: 0` / `maxRunners: 4`
 - No registry credentials needed: the ARC charts on ghcr.io are public, so the `HelmRepository` has no `secretRef`. ArgoCD needed a `repo-ghcr-arc` bootstrap Secret; it retired in wave 14
+- **Image builds go to the in-cluster `buildkitd`, not the runner** (`kubernetes/buildkit/`). `arc-runners` carries no PSA label so it inherits Talos' **baseline** default, and rootless buildkitd needs `seccompProfile: Unconfined`, which baseline forbids. Keeping the daemon in its own privileged namespace is what lets the namespace running workflow-defined code stay at baseline — don't fold it back into the job container. Replaced Kaniko, archived upstream June 2025
 
 ---
 

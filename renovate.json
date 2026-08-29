@@ -136,6 +136,12 @@
       "enabled": false
     },
     {
+      "description": "buildkitd runs in-cluster (kubernetes/buildkit/deployment.yaml, the -rootless variant) and build-claude-agent.yaml runs the matching buildctl client as its job container. Two managers see the two pins — kubernetes and github-actions — so without this they arrive as separate PRs and the client can be merged a release ahead of the daemon it talks to.",
+      "matchPackageNames": ["moby/buildkit"],
+      "groupName": "buildkit",
+      "groupSlug": "buildkit"
+    },
+    {
       "matchManagers": ["kubernetes"],
       "matchDatasources": ["docker"],
       "pinDigests": true
