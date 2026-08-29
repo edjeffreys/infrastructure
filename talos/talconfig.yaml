@@ -44,6 +44,11 @@ worker:
         kernel:
           modules:
             - name: iscsi_tcp
+        # Talos defaults this to 0, which disables user namespaces outright.
+        # Rootless buildkitd (kubernetes/buildkit) unshares one at startup and
+        # cannot run without it. Value is the one Sidero's own guide uses.
+        sysctls:
+          user.max_user_namespaces: "11255"
         kubelet:
           extraMounts:
             - destination: /var/lib/longhorn
