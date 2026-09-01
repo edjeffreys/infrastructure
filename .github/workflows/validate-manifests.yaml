@@ -78,7 +78,7 @@ jobs:
     runs-on: arc-runners
     env:
       KUBECONFORM_VERSION: "v0.8.0"
-      FLUX_VERSION: "v2.9.4"
+      FLUX_VERSION: "v2.9.5"
     steps:
       - name: Checkout
         uses: actions/checkout@v7
