@@ -1,0 +1,60 @@
+# Target shape for the homelab: QuickSync on the node holding the passed-through
+# iGPU. See conform.local.yaml for a software-encoder version to test with.
+
+libraries:
+  - name: movies
+    path: /data/Movies
+    profile: standard
+  - name: tv
+    path: /data/TV
+    profile: standard
+    exclude:
+      - "*/Season 00/*"
+
+profiles:
+  standard:
+    container: mkv
+
+    video:
+      # Codecs accepted as they are. Anything else is re-encoded; a file
+      # already in this list is never touched, which is what stops a second
+      # pass re-encoding the output of the first.
+      codecs: [hevc]
+      maxHeight: 1080
+      # scale_qsv rather than scale: with -hwaccel qsv the frames live in GPU
+      # memory, and the software filter would force a download and re-upload
+      # around every scale.
+      scaleFilter: "scale_qsv=h={height}:w=-1"
+      encoder:
+        name: hevc_qsv
+        inputArgs: ["-hwaccel", "qsv", "-hwaccel_output_format", "qsv"]
+        options:
+          global_quality: "24"
+          preset: "medium"
+
+    audio:
+      languages: [eng, und]
+      codecs: [aac, ac3, eac3]
+      maxChannels: 6
+      encoder:
+        name: eac3
+        options:
+          b: "640k"
+
+    subtitles:
+      languages: [eng, und]
+      # Image-based PGS is kept, not converted — see the planner. Anything
+      # outside this list is dropped rather than guessed at.
+      codecs: [subrip, ass, hdmv_pgs_subtitle]
+
+execution:
+  # Never longhorn: a transcode writes a full working copy of every file, and
+  # longhorn would put two replicas of it on the one Proxmox physical disk.
+  tempDir: /temp
+  stateDir: /config
+  workers: 1
+  # The shared NFS export is uid/gid 3000 throughout; a file left owned by
+  # anyone else silently loses the arr stack its write access.
+  owner:
+    uid: 3000
+    gid: 3000

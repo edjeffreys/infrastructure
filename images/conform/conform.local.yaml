@@ -1,0 +1,39 @@
+# Software-encoder config for trying this out on a laptop. Same rules as
+# conform.example.yaml, but libx265 instead of QuickSync and no chown, so it
+# runs anywhere ffmpeg does.
+
+libraries:
+  - name: sample
+    path: ./media
+    profile: standard
+
+profiles:
+  standard:
+    container: mkv
+    video:
+      codecs: [hevc]
+      maxHeight: 1080
+      encoder:
+        name: libx265
+        options:
+          crf: "28"
+          preset: "veryfast"
+          # libx265 writes its own progress banner to stderr, which buries the
+          # actual error when something goes wrong.
+          x265-params: "log-level=error"
+    audio:
+      languages: [eng, und]
+      codecs: [aac, ac3, eac3]
+      maxChannels: 6
+      encoder:
+        name: eac3
+        options:
+          b: "640k"
+    subtitles:
+      languages: [eng, und]
+      codecs: [subrip, ass]
+
+execution:
+  tempDir: ./.conform-tmp
+  stateDir: ./.conform-state
+  workers: 2
