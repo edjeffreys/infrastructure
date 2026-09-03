@@ -15,7 +15,7 @@ locals {
   # the machine config against the running maintenance kernel, not against the
   # version being installed. v1.12.6 media rejected a v1.36.1 Kubernetes config
   # and blocked talos-worker-0's rebuild entirely.
-  talos_version = "v1.13.2"
+  talos_version = "v1.13.10"
   talos_disk_store = "local-lvm"
 
   # Worker schematic: i915, intel-ucode, iscsi-tools, nfs-utils,
