@@ -8,6 +8,12 @@ spec:
       nodeSelector:
         node-type: standard
       tailscaleContainer:
+        env:
+          # Same trap as the node-level tailscaled in talos/talconfig.yaml:
+          # without --port it binds an ephemeral port that no policy can match,
+          # so the proxy has no advertisable endpoint and every peer relays.
+          - name: TS_TAILSCALED_EXTRA_ARGS
+            value: --port=41641
         resources:
           requests:
             cpu: 10m
@@ -34,6 +40,12 @@ spec:
           value: pia
           effect: NoExecute
       tailscaleContainer:
+        env:
+          # Same trap as the node-level tailscaled in talos/talconfig.yaml:
+          # without --port it binds an ephemeral port that no policy can match,
+          # so the proxy has no advertisable endpoint and every peer relays.
+          - name: TS_TAILSCALED_EXTRA_ARGS
+            value: --port=41641
         resources:
           requests:
             cpu: 10m

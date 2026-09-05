@@ -7,6 +7,14 @@
 ipam:
   mode: kubernetes
 
+ipv6:
+  enabled: true
+
+# Deliberately off, unlike the IPv4 side. Masquerading the pod GUA would put
+# pods back behind NAT, which is the whole reason Tailscale proxy pods could
+# not hold a direct path.
+enableIPv6Masquerade: false
+
 l2announcements:
   enabled: true
 
