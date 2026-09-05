@@ -196,8 +196,18 @@ nodes:
     controlPlane: false
     nodeLabels:
       node-type: pia
-    nodeTaints:
-      node-type: "pia:NoExecute"
+    # machine.nodeTaints patches the Node after registration and
+    # NodeRestriction refuses that (siderolabs/talos#13443); this applies the
+    # taint at Node creation, which it permits.
+    patches:
+      - |-
+        machine:
+          kubelet:
+            extraConfig:
+              registerWithTaints:
+                - key: node-type
+                  value: pia
+                  effect: NoExecute
 
   - hostname: talos-worker-pia-1
     ipAddress: 10.200.0.11
@@ -205,5 +215,15 @@ nodes:
     controlPlane: false
     nodeLabels:
       node-type: pia
-    nodeTaints:
-      node-type: "pia:NoExecute"
+    # machine.nodeTaints patches the Node after registration and
+    # NodeRestriction refuses that (siderolabs/talos#13443); this applies the
+    # taint at Node creation, which it permits.
+    patches:
+      - |-
+        machine:
+          kubelet:
+            extraConfig:
+              registerWithTaints:
+                - key: node-type
+                  value: pia
+                  effect: NoExecute
