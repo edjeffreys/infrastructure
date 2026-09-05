@@ -21,6 +21,10 @@ defaultSettings:
   storageMinimalAvailablePercentage: 10
   # Allow instance managers and engine images to run on PIA nodes
   taintToleration: "node-type=pia:NoExecute"
+  # The default only blocks on the single-replica CNPG and Prometheus volumes,
+  # where the data is replicated at the Postgres layer or rebuildable.
+  # upgrade-workers.sh gates on degraded volumes instead.
+  nodeDrainPolicy: always-allow
   # Kubernetes leaves pods Terminating forever on an unreachable node: it
   # cannot tell "node dead" from "node partitioned", so it will not risk
   # force-deleting a pod holding an RWO volume. Longhorn does know whether
