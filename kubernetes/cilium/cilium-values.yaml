@@ -1,14 +1,76 @@
-## Cilium Helm values
-## NOT managed by ArgoCD — apply manually:
-##   helm upgrade cilium cilium/cilium -n kube-system -f kubernetes/cilium/cilium-values.yaml
+## Cilium Helm values.
 ##
-## Note: MTU (1450) is set directly in the cilium-config ConfigMap, not here.
+## Cilium is the CNI, so no in-cluster controller owns it — a controller that
+## needs the network running cannot own the network. It is installed as a Talos
+## extraManifest at bootstrap and updated by re-rendering that manifest:
+##
+##   helm repo add cilium https://helm.cilium.io && helm repo update
+##   helm template cilium cilium/cilium --version <ver> -n kube-system \
+##     -f kubernetes/cilium/cilium-values.yaml > talos/manifests/cilium.yaml
+##
+## then applying the pieces that changed to the live cluster by hand. There is
+## no Helm release: `helm upgrade` has never worked here and would fail with
+## "release not found".
+##
+## This file is the complete input to that render. It did not used to be — the
+## original install passed the Talos-specific settings below as --set flags that
+## were never written down, so a re-render from this file would silently have
+## produced a Cilium that cannot run on Talos (no MTU pin, kube-proxy
+## replacement off, the wrong cgroup root, and a mount-cgroup init container
+## Talos does not want). Verified reproducible: rendering the previous version
+## with this file matched the committed manifest exactly.
 
 ipam:
   mode: kubernetes
 
 l2announcements:
   enabled: true
+
+# Overrides auto-detection, which would pick tailscale0's 1280 and apply it to
+# every pod, breaking large downloads. Do not remove.
+MTU: 1450
+
+# --- Talos-specific ---
+# Talos already mounts cgroup2 at /sys/fs/cgroup, so Cilium must not try to
+# mount its own at /run/cilium/cgroupv2 — leaving autoMount on adds a
+# mount-cgroup init container that has nothing to do.
+cgroup:
+  autoMount:
+    enabled: false
+  hostRoot: /sys/fs/cgroup
+
+# With kube-proxy replaced, the agent cannot reach the API server through a
+# Service ClusterIP, so it needs the control plane VIP directly.
+kubeProxyReplacement: true
+k8sServiceHost: 10.0.0.200
+k8sServicePort: 6443
+
+# Talos' capability set: deliberately without SYS_MODULE and SYSLOG, which the
+# chart adds by default and Talos does not permit.
+securityContext:
+  capabilities:
+    ciliumAgent:
+      - CHOWN
+      - KILL
+      - NET_ADMIN
+      - NET_RAW
+      - IPC_LOCK
+      - SYS_ADMIN
+      - SYS_RESOURCE
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    cleanCiliumState:
+      - NET_ADMIN
+      - SYS_ADMIN
+      - SYS_RESOURCE
+
+bpf:
+  masquerade: true
+
+envoy:
+  enabled: false
 
 operator:
   replicas: 1
@@ -23,6 +85,13 @@ prometheus:
 
 hubble:
   enabled: true
+  tls:
+    auto:
+      # NOT the chart default of `helm`, which generates RSA private keys into
+      # the rendered output — this file's render is committed, so that put real
+      # ca.key and tls.key material in git and regenerated it on every render.
+      # cronJob makes certgen produce them in-cluster instead.
+      method: cronJob
   relay:
     enabled: true
   ui:
