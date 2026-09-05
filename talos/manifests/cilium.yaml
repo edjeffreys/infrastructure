@@ -130,7 +130,7 @@ data:
 
   # Enable IPv6 addressing. If enabled, all endpoints are allocated an IPv6
   # address.
-  enable-ipv6: "true"
+  enable-ipv6: "false"
   # Users who wish to specify their own custom CNI configuration file must set
   # custom-cni-conf to "true", otherwise Cilium may overwrite the configuration.
   custom-cni-conf: "false"
@@ -215,10 +215,7 @@ data:
   enable-ipv4-masquerade: "true"
   enable-ipv4-big-tcp: "false"
   enable-ipv6-big-tcp: "false"
-  # Deliberately off, unlike the IPv4 side. Masquerading the pod GUA would put
-  # pods back behind NAT, which is the whole reason Tailscale proxy pods could
-  # not hold a direct path.
-  enable-ipv6-masquerade: "false"
+  enable-ipv6-masquerade: "true"
   enable-tunnel-big-tcp: "false"
   enable-tcx: "true"
   datapath-mode: "veth"
@@ -247,10 +244,6 @@ data:
   enable-service-topology: "false"
   enable-l2-neigh-discovery: "false"
   k8s-require-ipv4-pod-cidr: "false"
-  # Must stay false until every node has been re-registered with a v6 podCIDR:
-  # the agent blocks on startup waiting for one, so flipping this early strands
-  # any node not yet migrated. Worth setting true once the fleet is dual-stack,
-  # so a node coming back v4-only fails loudly instead of silently.
   k8s-require-ipv6-pod-cidr: "false"
   enable-k8s-networkpolicy: "true"
   enable-endpoint-lockdown-on-policy-overflow: "false"
