@@ -20,6 +20,26 @@ spec:
               protocol: TCP
 
 ---
+# Pods here hold a GUA from the cluster pod CIDR regardless of the VLAN they run
+# on, so v6 egress would bypass PIA. The VLAN has IPv6 removed, which already
+# kills it at the routing layer -- this is the second line, and the one that
+# still holds if v6 is ever restored there. Cilium denies beat allows, so one
+# rule covers the namespace; the excepts keep in-cluster v6 working.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: deny-ipv6-egress
+  namespace: arr
+spec:
+  endpointSelector: {}
+  egressDeny:
+    - toCIDRSet:
+        - cidr: "::/0"
+          except:
+            - "2a0e:cb01:ca:fe80::/60"
+            - "fd53:0:0:53::/112"
+
+---
 # Allow sabnzbd internet egress (usenet downloads via PIA)
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy

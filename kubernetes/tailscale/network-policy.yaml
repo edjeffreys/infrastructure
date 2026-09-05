@@ -60,7 +60,12 @@ spec:
             namespace: default
 
 ---
-# Allow inbound WireGuard and DERP traffic to tailscale proxy/connector pods
+# Allow inbound WireGuard to tailscale proxy/connector pods.
+#
+# DERP needs no rule here: the pod dials the relay outbound, so return traffic
+# is conntrack reply. Only the direct path arrives unsolicited, and it lands on
+# the port pinned in proxy-class.yaml -- hence world is scoped to it rather
+# than left open on every port, now that pods hold a routable GUA.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -74,7 +79,12 @@ spec:
     - fromEntities:
         - host
         - remote-node
+    - fromEntities:
         - world
+      toPorts:
+        - ports:
+            - port: "41641"
+              protocol: UDP
 
 ---
 # Allow tailscale proxy pods to reach backend services

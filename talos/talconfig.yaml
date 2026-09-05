@@ -3,10 +3,17 @@ talosVersion: v1.13.2
 kubernetesVersion: v1.36.1
 endpoint: https://10.0.0.200:6443
 
+# IPv4 first in both lists and in kubelet nodeIP.validSubnets below -- Talos
+# fails config parsing if the family order differs between them.
 clusterPodNets:
   - 10.52.0.0/16
+  # GUA, not ULA: without a globally routable pod address Tailscale has no
+  # direct endpoint to advertise and every session falls back to a relay.
+  - 2a0e:cb01:ca:fe80::/60
 clusterSvcNets:
   - 10.53.0.0/16
+  # ULA -- service IPs are never routed off-cluster.
+  - fd53:0:0:53::/112
 
 cniConfig:
   name: none  # Cilium installed separately
@@ -67,6 +74,14 @@ patches:
         nameservers:
           - 10.0.0.1
           - 1.1.1.1
+      kubelet:
+        nodeIP:
+          # Without this kubelet can register a tailscale0 address (100.64/10,
+          # fd7a::/48) as the node IP. No PIA prefix here on purpose: that VLAN
+          # has IPv6 removed, so its nodes register v4-only.
+          validSubnets:
+            - 10.0.0.0/8
+            - 2a0e:cb01:ca:fe00::/56
 
   # The tailscale extension is configured by an ExtensionServiceConfig
   # document, NOT by writing /var/etc/tailscale/tailscaled.env via
@@ -82,6 +97,9 @@ patches:
     environment:
       - TS_AUTHKEY=${TAILSCALE_AUTH_KEY}
       - TS_EXTRA_ARGS=--advertise-tags=tag:server
+      # tailscaled picks an ephemeral port otherwise, which no firewall rule
+      # can match. --port is a tailscaled flag, not a `tailscale up` one.
+      - TS_TAILSCALED_EXTRA_ARGS=--port=41641
 
 controlPlane:
   schematic:
@@ -91,6 +109,19 @@ controlPlane:
           - siderolabs/qemu-guest-agent
           - siderolabs/tailscale
   patches:
+    # Only the control plane advertises the LAN subnet route: these three nodes
+    # sit inside 10.0.0.0/24 themselves, while workers (10.11.0.0/24) and the
+    # PIA pool (10.200.0.0/24) would hairpin via their gateway. Tailscale elects
+    # one primary subnet router from whoever advertises, and a PIA node winning
+    # that election would drag LAN traffic through the PIA egress path.
+    - |-
+      apiVersion: v1alpha1
+      kind: ExtensionServiceConfig
+      name: tailscale
+      environment:
+        - TS_AUTHKEY=${TAILSCALE_AUTH_KEY}
+        - TS_EXTRA_ARGS=--advertise-tags=tag:server --advertise-routes=10.0.0.0/24
+        - TS_TAILSCALED_EXTRA_ARGS=--port=41641
     - |-
       machine:
         network:
