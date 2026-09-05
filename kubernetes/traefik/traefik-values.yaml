@@ -11,20 +11,13 @@ service:
     # LAN clients as WAN, capping their stream bitrate.
     externalTrafficPolicy: Local
 
-# One replica per control plane node. `externalTrafficPolicy: Local` drops
-# traffic on any node without a local endpoint, and the Cilium L2 lease can sit
-# on any of the three, so all three need a pod.
+# One pod per control plane node, which `externalTrafficPolicy: Local` needs —
+# it blackholes traffic on any node without a local endpoint, and the Cilium L2
+# lease can sit on any of the three. A DaemonSet gets that from the nodeSelector
+# below; a Deployment with anti-affinity deadlocks instead, because the rolling
+# update surges a fourth pod that no node will take.
 deployment:
-  replicas: 3
-
-# Keeps the three replicas one-per-node rather than stacked.
-affinity:
-  podAntiAffinity:
-    requiredDuringSchedulingIgnoredDuringExecution:
-      - labelSelector:
-          matchLabels:
-            app.kubernetes.io/name: traefik
-        topologyKey: kubernetes.io/hostname
+  kind: DaemonSet
 
 # Run on CP node — firewall rules permit outbound to internal services (e.g. TrueNAS)
 # from CP node IPs only.
