@@ -92,9 +92,15 @@
   ],
   "packageRules": [
     {
-      "matchPackageNames": ["ghcr.io/siderolabs/installer", "kubernetes/kubernetes"],
+      "description": "The three Talos installer pins -- talconfig.yaml, terraform/proxmox/talos.tf and scripts/upgrade-workers.sh -- must move together or a rebuilt VM boots maintenance media that rejects the config. kubernetes/kubernetes used to be grouped here too; it was split out because grouping meant a Kubernetes minor rode along with every Talos patch, and the two are gated on different things. See the ceiling below.",
+      "matchPackageNames": ["ghcr.io/siderolabs/installer"],
       "groupName": "talos",
       "groupSlug": "talos"
+    },
+    {
+      "description": "Kubernetes cannot run ahead of what Cilium is e2e-tested against, and nothing tells Renovate that -- Cilium publishes its support matrix as prose in its docs, with no metadata any manager can read. Cilium 1.19 supports Kubernetes 1.31-1.34; 1.20 supports 1.33-1.36. The cluster is already past that on 1.36.1 with Cilium 1.19.2, which is why this ceiling is deliberately below the newest release rather than at it. Raise it only *after* Cilium is upgraded, never in the same PR: https://docs.cilium.io/en/stable/network/kubernetes/requirements/",
+      "matchPackageNames": ["kubernetes/kubernetes"],
+      "allowedVersions": "<1.37.0"
     },
     {
       "description": "ARC chart updates are held back deliberately. The pattern stays unanchored on purpose. Under the old argocd manager the depName came out doubled — `.../gha-runner-scale-set/gha-runner-scale-set` — because that manager appends `chart:` to a repoURL already ending in the chart name, so an `^actions/` anchor never matched and Renovate retried the failing lookup every run. Since wave 14 these charts are read by the flux manager from flux/apps/arc-*.yaml, which builds the name differently again; matching on the substring keeps the hold-back working across both.",
