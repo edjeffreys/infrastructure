@@ -1,3 +1,12 @@
+# Cilium 1.20.1 — the CNI, applied by Talos as a cluster extraManifest at
+# bootstrap. Do not hand-edit: this file is generated, and hand-edits are how
+# the Talos-specific settings went missing from cilium-values.yaml in the first
+# place. Regenerate with the command in kubernetes/cilium/README.md, which
+# reproduces this file byte for byte.
+#
+# Note extraManifests are applied only at cluster bootstrap, so changing this
+# file does not touch a running cluster — see the README for how updates reach
+# the live one.
 ---
 # Source: cilium/templates/cilium-secrets-namespace.yaml
 apiVersion: v1
@@ -6,6 +15,7 @@ metadata:
   name: "cilium-secrets"
   labels:
     app.kubernetes.io/part-of: cilium
+    helm.sh/chart: cilium-1.20.1
   annotations:
 ---
 # Source: cilium/templates/cilium-agent/serviceaccount.yaml
@@ -14,6 +24,7 @@ kind: ServiceAccount
 metadata:
   name: "cilium"
   namespace: kube-system
+
 ---
 # Source: cilium/templates/cilium-operator/serviceaccount.yaml
 apiVersion: v1
@@ -21,6 +32,7 @@ kind: ServiceAccount
 metadata:
   name: "cilium-operator"
   namespace: kube-system
+
 ---
 # Source: cilium/templates/hubble-relay/serviceaccount.yaml
 apiVersion: v1
@@ -29,6 +41,7 @@ metadata:
   name: "hubble-relay"
   namespace: kube-system
 automountServiceAccountToken: false
+
 ---
 # Source: cilium/templates/hubble-ui/serviceaccount.yaml
 apiVersion: v1
@@ -36,30 +49,16 @@ kind: ServiceAccount
 metadata:
   name: "hubble-ui"
   namespace: kube-system
+
 ---
-# The three Secret documents the Helm render used to emit here — cilium-ca,
-# hubble-relay-client-certs and hubble-server-certs — have been removed. They
-# carried real RSA private keys (ca.key and two tls.key values) in a file this
-# repo is about to publish, and `hubble.tls.auto.method: helm` regenerates them
-# into the render every time, so they cannot simply be scrubbed once.
-#
-# The running cluster is unaffected: it already holds these Secrets in
-# kube-system, and Talos only applies extraManifests at bootstrap.
-#
-# OUTSTANDING — a node bootstrapped from this file will bring up Hubble without
-# certificates and hubble-relay will not start. Two things are still to do:
-#
-#   1. Re-render with `hubble.tls.auto.method: cronJob` (or certmanager) so the
-#      certificates are generated in-cluster and never enter git again. That
-#      also emits the certgen Job/CronJob, ServiceAccount and RBAC this file is
-#      currently missing.
-#   2. Rotate the keys that were exposed:
-#        kubectl -n kube-system delete secret \
-#          cilium-ca hubble-relay-client-certs hubble-server-certs
-#      then let certgen reissue them and restart hubble-relay and the agents.
-#
-# Until (1) lands, bootstrapping a replacement node needs the Secrets applied
-# out of band. See kubernetes/cilium/README.md.
+# Source: cilium/templates/hubble/tls-cronjob/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: "hubble-generate-certs"
+  namespace: kube-system
+
+---
 # Source: cilium/templates/cilium-configmap.yaml
 apiVersion: v1
 kind: ConfigMap
@@ -91,13 +90,11 @@ data:
 
   # If you want to run cilium in debug mode change this value to true
   debug: "false"
-  debug-verbose: ""
   metrics-sampling-interval: "5m"
   # The agent can be put into the following three policy enforcement modes
   # default, always and never.
   # https://docs.cilium.io/en/latest/security/policy/intro/#policy-enforcement-modes
   enable-policy: "default"
-  policy-cidr-match-mode: ""
   # If you want metrics enabled in all of your Cilium agents, set the port for
   # which the Cilium agents will have their metrics exposed.
   # This option deprecates the "prometheus-serve-addr" in the
@@ -165,6 +162,10 @@ data:
   bpf-lb-map-max: "65536"
   bpf-lb-external-clusterip: "false"
   bpf-lb-source-range-all-types: "false"
+# When Gateway API is enabled this is forced to "true" so per-backend weights
+# on TCPRoute/UDPRoute take effect (Maglev honors the LB algorithm annotation only
+# when enabled). Paired with `bpf-lb-sock-hostns-only`, which is forced "true"
+# for the same reason.
   bpf-lb-algorithm-annotation: "false"
   bpf-lb-mode-annotation: "false"
 
@@ -216,7 +217,6 @@ data:
   enable-ipv4-big-tcp: "false"
   enable-ipv6-big-tcp: "false"
   enable-ipv6-masquerade: "true"
-  enable-tunnel-big-tcp: "false"
   enable-tcx: "true"
   datapath-mode: "veth"
   enable-bpf-masquerade: "true"
@@ -231,12 +231,17 @@ data:
 
 
 
+  enable-host-firewall: "false"
+  # List of devices used to attach bpf_host.o (implements BPF NodePort,
+  # host-firewall and BPF masquerading)
+  devices: ""
+
   kube-proxy-replacement: "true"
   kube-proxy-replacement-healthz-bind-address: ""
   enable-no-service-endpoints-routable: "true"
   bpf-lb-sock: "false"
-  nodeport-addresses: ""
   enable-health-check-nodeport: "true"
+  enable-dynamic-source-lookup-nodeport: "false"
   enable-health-check-loadbalancer-ip: "false"
   node-port-bind-protection: "true"
   enable-auto-protect-node-port-range: "true"
@@ -275,7 +280,6 @@ data:
     drop:sourceContext=workload-name;destinationContext=workload-name
     tcp:sourceContext=workload-name;destinationContext=workload-name
     flow:sourceContext=workload-name;destinationContext=workload-name
-    port-distribution:sourceContext=workload-name;destinationContext=workload-name
     icmp:sourceContext=workload-name;destinationContext=workload-name
     http:sourceContext=workload-name;destinationContext=workload-name
   hubble-network-policy-correlation-enabled: "true"
@@ -337,19 +341,24 @@ data:
   proxy-max-concurrent-retries: "128"
   proxy-use-original-source-address: "true"
   proxy-cluster-max-connections: "1024"
+  proxy-cluster-max-pending-requests: "1024"
   proxy-cluster-max-requests: "1024"
   http-retry-count: "3"
   http-stream-idle-timeout: "300"
+  envoy-node-locality-enabled: "false"
 
   external-envoy-proxy: "false"
   envoy-base-id: "0"
+  envoy-access-log-enabled: "true"
   envoy-access-log-buffer-size: "4096"
   envoy-keep-cap-netbindservice: "false"
+  envoy-xds-mode: "ads"
   max-connected-clusters: "255"
   clustermesh-cache-ttl: "0s"
   clustermesh-enable-endpoint-sync: "false"
   clustermesh-enable-mcs-api: "false"
   clustermesh-mcs-api-install-crds: "true"
+  clustermesh-default-global-namespace: "true"
   policy-default-local-cluster: "true"
 
   nat-map-stats-entries: "32"
@@ -357,9 +366,15 @@ data:
   enable-lb-ipam: "true"
   enable-non-default-deny-policies: "true"
   enable-source-ip-verification: "true"
+  enable-dynamic-config: "true"
+  enable-drift-checker: "true"
+
+  enable-datapath-plugins: "false"
+  datapath-plugins-state-dir: "/var/run/cilium/plugins"
 
 # Extra config allows adding arbitrary properties to the cilium config.
 # By putting it at the end of the ConfigMap, it's also possible to override existing properties.
+
 ---
 # Source: cilium/templates/hubble-relay/configmap.yaml
 apiVersion: v1
@@ -382,6 +397,7 @@ data:
     tls-hubble-server-ca-files: /var/lib/hubble-relay/tls/hubble-server-ca.crt
     
     disable-server-tls: true
+
 ---
 # Source: cilium/templates/hubble-ui/configmap.yaml
 apiVersion: v1
@@ -391,6 +407,7 @@ metadata:
   namespace: kube-system
 data:
   nginx.conf: "server {\n    listen       8081;\n    listen       [::]:8081;\n    server_name  localhost;\n    root /app;\n    index index.html;\n    client_max_body_size 1G;\n\n    location / {\n        proxy_set_header Host $host;\n        proxy_set_header X-Real-IP $remote_addr;\n\n        location /api {\n            proxy_http_version 1.1;\n            proxy_pass_request_headers on;\n            proxy_pass http://127.0.0.1:8090;\n        }\n        location / {\n            if ($http_user_agent ~* \"kube-probe\") { access_log off; }\n            # double `/index.html` is required here\n            try_files $uri $uri/ /index.html /index.html;\n        }\n\n        # Liveness probe\n        location /healthz {\n            access_log off;\n            add_header Content-Type text/plain;\n            return 200 'ok';\n        }\n    }\n}"
+
 ---
 # Source: cilium/templates/cilium-agent/clusterrole.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -399,6 +416,7 @@ metadata:
   name: cilium
   labels:
     app.kubernetes.io/part-of: cilium
+    helm.sh/chart: cilium-1.20.1
 rules:
 - apiGroups:
   - networking.k8s.io
@@ -422,7 +440,6 @@ rules:
   - namespaces
   - services
   - pods
-  - endpoints
   - nodes
   verbs:
   - get
@@ -470,6 +487,7 @@ rules:
   - ciliumcidrgroups
   - ciliuml2announcementpolicies
   - ciliumpodippools
+  - ciliumdatapathplugins
   verbs:
   - list
   - watch
@@ -512,6 +530,7 @@ rules:
   - ciliumbgpnodeconfigs/status
   verbs:
   - patch
+
 ---
 # Source: cilium/templates/cilium-operator/clusterrole.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -520,6 +539,7 @@ metadata:
   name: cilium-operator
   labels:
     app.kubernetes.io/part-of: cilium
+    helm.sh/chart: cilium-1.20.1
 rules:
 - apiGroups:
   - ""
@@ -579,6 +599,7 @@ rules:
   # to check apiserver connectivity
   - namespaces
   - secrets
+  - serviceaccounts
   verbs:
   - get
   - list
@@ -588,22 +609,23 @@ rules:
   resources:
   # to perform the translation of a CNP that contains `ToGroup` to its endpoints
   - services
-  - endpoints
   verbs:
   - get
   - list
   - watch
 - apiGroups:
+  # Watch CNP / CCNPs for validation and external groups.
   - cilium.io
   resources:
   - ciliumnetworkpolicies
   - ciliumclusterwidenetworkpolicies
   verbs:
-  # Create auto-generated CNPs and CCNPs from Policies that have 'toGroups'
+  # Create auto-generated CNPs and CCNPs from Policies that have 'toGroups'.
+  # This was removed in v1.20, but we must keep the permissions until v1.21 for
+  # upgrade phasing.
   - create
   - update
   - deletecollection
-  # To update the status of the CNPs and CCNPs
   - patch
   - get
   - list
@@ -614,7 +636,7 @@ rules:
   - ciliumnetworkpolicies/status
   - ciliumclusterwidenetworkpolicies/status
   verbs:
-  # Update the auto-generated CNPs and CCNPs status.
+  # Set validity status on CNP / CCNP.
   - patch
   - update
 - apiGroups:
@@ -657,9 +679,12 @@ rules:
   resources:
   - ciliumendpointslices
   - ciliumenvoyconfigs
+  - ciliumbgpclusterconfigs
+  - ciliumbgpnodeconfigoverrides
   - ciliumbgppeerconfigs
   - ciliumbgpadvertisements
   - ciliumbgpnodeconfigs
+  - ciliumcidrgroups
   verbs:
   - create
   - update
@@ -712,14 +737,26 @@ rules:
   - ciliuml2announcementpolicies.cilium.io
   - ciliumpodippools.cilium.io
   - ciliumgatewayclassconfigs.cilium.io
+  - ciliumdatapathplugins.cilium.io
+- apiGroups:
+  - apiextensions.k8s.io
+  resources:
+  - customresourcedefinitions/status
+  verbs:
+  - update
+  resourceNames:
+  - ciliumbgpclusterconfigs.cilium.io
+  - ciliumbgppeerconfigs.cilium.io
+  - ciliumbgpadvertisements.cilium.io
+  - ciliumbgpnodeconfigs.cilium.io
+  - ciliumbgpnodeconfigoverrides.cilium.io
 - apiGroups:
   - cilium.io
   resources:
   - ciliumloadbalancerippools
   - ciliumpodippools
-  - ciliumbgpclusterconfigs
-  - ciliumbgpnodeconfigoverrides
   - ciliumbgppeerconfigs
+  - ciliumdatapathplugins
   verbs:
   - get
   - list
@@ -756,6 +793,7 @@ rules:
   - ciliumendpointslices
   verbs:
   - deletecollection
+
 ---
 # Source: cilium/templates/hubble-ui/clusterrole.yaml
 kind: ClusterRole
@@ -764,13 +802,13 @@ metadata:
   name: hubble-ui
   labels:
     app.kubernetes.io/part-of: cilium
+    helm.sh/chart: cilium-1.20.1
 
 rules:
 - apiGroups:
   - ""
   resources:
   - componentstatuses
-  - endpoints
   - namespaces
   - nodes
   - pods
@@ -787,6 +825,7 @@ rules:
   - get
   - list
   - watch
+
 ---
 # Source: cilium/templates/cilium-agent/clusterrolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -795,6 +834,7 @@ metadata:
   name: cilium
   labels:
     app.kubernetes.io/part-of: cilium
+    helm.sh/chart: cilium-1.20.1
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
@@ -803,6 +843,7 @@ subjects:
 - kind: ServiceAccount
   name: "cilium"
   namespace: kube-system
+
 ---
 # Source: cilium/templates/cilium-operator/clusterrolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -811,6 +852,7 @@ metadata:
   name: cilium-operator
   labels:
     app.kubernetes.io/part-of: cilium
+    helm.sh/chart: cilium-1.20.1
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
@@ -819,6 +861,7 @@ subjects:
 - kind: ServiceAccount
   name: "cilium-operator"
   namespace: kube-system
+
 ---
 # Source: cilium/templates/hubble-ui/clusterrolebinding.yaml
 kind: ClusterRoleBinding
@@ -827,6 +870,7 @@ metadata:
   name: hubble-ui
   labels:
     app.kubernetes.io/part-of: cilium
+    helm.sh/chart: cilium-1.20.1
 
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -836,6 +880,7 @@ subjects:
 - kind: ServiceAccount
   name: "hubble-ui"
   namespace: kube-system
+
 ---
 # Source: cilium/templates/cilium-agent/role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -845,6 +890,7 @@ metadata:
   namespace: kube-system
   labels:
     app.kubernetes.io/part-of: cilium
+    helm.sh/chart: cilium-1.20.1
 rules:
 - apiGroups:
   - ""
@@ -854,6 +900,7 @@ rules:
   - get
   - list
   - watch
+
 ---
 # Source: cilium/templates/cilium-agent/role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -863,6 +910,7 @@ metadata:
   namespace: "cilium-secrets"
   labels:
     app.kubernetes.io/part-of: cilium
+    helm.sh/chart: cilium-1.20.1
 rules:
 - apiGroups:
   - ""
@@ -872,6 +920,7 @@ rules:
   - get
   - list
   - watch
+
 ---
 # Source: cilium/templates/cilium-operator/role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -881,6 +930,7 @@ metadata:
   namespace: "cilium-secrets"
   labels:
     app.kubernetes.io/part-of: cilium
+    helm.sh/chart: cilium-1.20.1
 rules:
 - apiGroups:
   - ""
@@ -891,6 +941,7 @@ rules:
   - delete
   - update
   - patch
+
 ---
 # Source: cilium/templates/cilium-operator/role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -900,6 +951,7 @@ metadata:
   namespace: kube-system
   labels:
     app.kubernetes.io/part-of: cilium
+    helm.sh/chart: cilium-1.20.1
 rules:
 # ZTunnel DaemonSet management permissions
 # Note: These permissions must always be granted (not conditional on encryption.type)
@@ -914,6 +966,55 @@ rules:
   - get
   - list
   - watch
+- apiGroups:
+  - ""
+  resources:
+  - serviceaccounts
+  verbs:
+  - get
+  - list
+  - watch
+
+---
+# Source: cilium/templates/hubble/tls-cronjob/role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: hubble-generate-certs
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/part-of: cilium
+    helm.sh/chart: cilium-1.20.1
+
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - create
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    resourceNames:
+      - hubble-server-certs
+      - hubble-relay-client-certs
+      - hubble-relay-server-certs
+      - hubble-metrics-server-certs
+      - hubble-ui-client-certs
+    verbs:
+      - update
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    resourceNames:
+      - cilium-ca
+    verbs:
+      - get
+      - update
+
 ---
 # Source: cilium/templates/cilium-agent/rolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -923,6 +1024,7 @@ metadata:
   namespace: kube-system
   labels:
     app.kubernetes.io/part-of: cilium
+    helm.sh/chart: cilium-1.20.1
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -931,6 +1033,7 @@ subjects:
   - kind: ServiceAccount
     name: "cilium"
     namespace: kube-system
+
 ---
 # Source: cilium/templates/cilium-agent/rolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -940,6 +1043,7 @@ metadata:
   namespace: "cilium-secrets"
   labels:
     app.kubernetes.io/part-of: cilium
+    helm.sh/chart: cilium-1.20.1
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -948,6 +1052,7 @@ subjects:
 - kind: ServiceAccount
   name: "cilium"
   namespace: kube-system
+
 ---
 # Source: cilium/templates/cilium-operator/rolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -957,6 +1062,7 @@ metadata:
   namespace: "cilium-secrets"
   labels:
     app.kubernetes.io/part-of: cilium
+    helm.sh/chart: cilium-1.20.1
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -965,6 +1071,7 @@ subjects:
 - kind: ServiceAccount
   name: "cilium-operator"
   namespace: kube-system
+
 ---
 # Source: cilium/templates/cilium-operator/rolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -974,6 +1081,7 @@ metadata:
   namespace: kube-system
   labels:
     app.kubernetes.io/part-of: cilium
+    helm.sh/chart: cilium-1.20.1
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -982,6 +1090,27 @@ subjects:
 - kind: ServiceAccount
   name: "cilium-operator"
   namespace: kube-system
+
+---
+# Source: cilium/templates/hubble/tls-cronjob/rolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: hubble-generate-certs
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/part-of: cilium
+    helm.sh/chart: cilium-1.20.1
+
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: hubble-generate-certs
+subjects:
+- kind: ServiceAccount
+  name: "hubble-generate-certs"
+  namespace: kube-system
+
 ---
 # Source: cilium/templates/cilium-agent/service.yaml
 apiVersion: v1
@@ -996,6 +1125,7 @@ metadata:
     k8s-app: cilium
     app.kubernetes.io/name: cilium-agent
     app.kubernetes.io/part-of: cilium
+    helm.sh/chart: cilium-1.20.1
 spec:
   clusterIP: None
   type: ClusterIP
@@ -1006,6 +1136,7 @@ spec:
     port: 9964
     protocol: TCP
     targetPort: envoy-metrics
+
 ---
 # Source: cilium/templates/hubble-relay/service.yaml
 kind: Service
@@ -1018,6 +1149,7 @@ metadata:
     k8s-app: hubble-relay
     app.kubernetes.io/name: hubble-relay
     app.kubernetes.io/part-of: cilium
+    helm.sh/chart: cilium-1.20.1
 
 spec:
   type: "ClusterIP"
@@ -1027,6 +1159,7 @@ spec:
   - protocol: TCP
     port: 80
     targetPort: grpc
+
 ---
 # Source: cilium/templates/hubble-ui/service.yaml
 kind: Service
@@ -1038,6 +1171,7 @@ metadata:
     k8s-app: hubble-ui
     app.kubernetes.io/name: hubble-ui
     app.kubernetes.io/part-of: cilium
+    helm.sh/chart: cilium-1.20.1
 
 spec:
   type: "ClusterIP"
@@ -1047,6 +1181,7 @@ spec:
     - name: http
       port: 80
       targetPort: 8081
+
 ---
 # Source: cilium/templates/hubble/metrics-service.yaml
 apiVersion: v1
@@ -1058,6 +1193,7 @@ metadata:
     k8s-app: hubble
     app.kubernetes.io/name: hubble
     app.kubernetes.io/part-of: cilium
+    helm.sh/chart: cilium-1.20.1
 
   annotations:
     prometheus.io/scrape: "true"
@@ -1072,6 +1208,7 @@ spec:
     targetPort: hubble-metrics
   selector:
     k8s-app: cilium
+
 ---
 # Source: cilium/templates/hubble/peer-service.yaml
 apiVersion: v1
@@ -1083,6 +1220,7 @@ metadata:
     k8s-app: cilium
     app.kubernetes.io/part-of: cilium
     app.kubernetes.io/name: hubble-peer
+    helm.sh/chart: cilium-1.20.1
 
 spec:
   selector:
@@ -1093,6 +1231,7 @@ spec:
     protocol: TCP
     targetPort: 4244
   internalTrafficPolicy: Local
+
 ---
 # Source: cilium/templates/cilium-agent/daemonset.yaml
 apiVersion: apps/v1
@@ -1104,6 +1243,7 @@ metadata:
     k8s-app: cilium
     app.kubernetes.io/part-of: cilium
     app.kubernetes.io/name: cilium-agent
+    helm.sh/chart: cilium-1.20.1
 spec:
   selector:
     matchLabels:
@@ -1122,6 +1262,7 @@ spec:
         k8s-app: cilium
         app.kubernetes.io/name: cilium-agent
         app.kubernetes.io/part-of: cilium
+        helm.sh/chart: cilium-1.20.1
     spec:
       securityContext:
         appArmorProfile:
@@ -1130,7 +1271,7 @@ spec:
           type: Unconfined
       containers:
       - name: cilium-agent
-        image: "quay.io/cilium/cilium:v1.19.2@sha256:7bc7e0be845cae0a70241e622cd03c3b169001c9383dd84329c59ca86a8b1341"
+        image: "quay.io/cilium/cilium:v1.20.1@sha256:ae9ea21f7427fe24bc6ea7247eb552157a1b0a431744045d3f641545ca71d11b"
         imagePullPolicy: IfNotPresent
         command:
         - cilium-agent
@@ -1318,7 +1459,7 @@ spec:
         
       initContainers:
       - name: config
-        image: "quay.io/cilium/cilium:v1.19.2@sha256:7bc7e0be845cae0a70241e622cd03c3b169001c9383dd84329c59ca86a8b1341"
+        image: "quay.io/cilium/cilium:v1.20.1@sha256:ae9ea21f7427fe24bc6ea7247eb552157a1b0a431744045d3f641545ca71d11b"
         imagePullPolicy: IfNotPresent
         command:
         - cilium-dbg
@@ -1349,13 +1490,13 @@ spec:
             drop:
               - ALL
       - name: apply-sysctl-overwrites
-        image: "quay.io/cilium/cilium:v1.19.2@sha256:7bc7e0be845cae0a70241e622cd03c3b169001c9383dd84329c59ca86a8b1341"
+        image: "quay.io/cilium/cilium:v1.20.1@sha256:ae9ea21f7427fe24bc6ea7247eb552157a1b0a431744045d3f641545ca71d11b"
         imagePullPolicy: IfNotPresent
         env:
         - name: BIN_PATH
           value: /opt/cni/bin
         command:
-        - sh
+        - bash
         - -ec
         # The statically linked Go program binary is invoked to avoid any
         # dependency on utilities like sh that can be missing on certain
@@ -1387,7 +1528,7 @@ spec:
       # from a privileged container because the mount propagation bidirectional
       # only works from privileged containers.
       - name: mount-bpf-fs
-        image: "quay.io/cilium/cilium:v1.19.2@sha256:7bc7e0be845cae0a70241e622cd03c3b169001c9383dd84329c59ca86a8b1341"
+        image: "quay.io/cilium/cilium:v1.20.1@sha256:ae9ea21f7427fe24bc6ea7247eb552157a1b0a431744045d3f641545ca71d11b"
         imagePullPolicy: IfNotPresent
         args:
         - 'mount | grep "/sys/fs/bpf type bpf" || mount -t bpf bpf /sys/fs/bpf'
@@ -1403,7 +1544,7 @@ spec:
           mountPath: /sys/fs/bpf
           mountPropagation: Bidirectional
       - name: clean-cilium-state
-        image: "quay.io/cilium/cilium:v1.19.2@sha256:7bc7e0be845cae0a70241e622cd03c3b169001c9383dd84329c59ca86a8b1341"
+        image: "quay.io/cilium/cilium:v1.20.1@sha256:ae9ea21f7427fe24bc6ea7247eb552157a1b0a431744045d3f641545ca71d11b"
         imagePullPolicy: IfNotPresent
         command:
         - /init-container.sh
@@ -1453,7 +1594,7 @@ spec:
           mountPath: /var/run/cilium # wait-for-kube-proxy
       # Install the CNI binaries in an InitContainer so we don't have a writable host mount in the agent
       - name: install-cni-binaries
-        image: "quay.io/cilium/cilium:v1.19.2@sha256:7bc7e0be845cae0a70241e622cd03c3b169001c9383dd84329c59ca86a8b1341"
+        image: "quay.io/cilium/cilium:v1.20.1@sha256:ae9ea21f7427fe24bc6ea7247eb552157a1b0a431744045d3f641545ca71d11b"
         imagePullPolicy: IfNotPresent
         command:
           - "/install-plugin.sh"
@@ -1481,6 +1622,7 @@ spec:
       automountServiceAccountToken: true
       terminationGracePeriodSeconds: 1
       hostNetwork: true
+      hostUsers: true
       
       affinity:
         podAntiAffinity:
@@ -1493,6 +1635,7 @@ spec:
         kubernetes.io/os: linux
       tolerations:
         - operator: Exists
+      
       volumes:
       # For sharing configuration between the "config" initContainer and the agent
       - name: tmp
@@ -1601,6 +1744,8 @@ spec:
                 path: server.key
               - key: ca.crt
                 path: client-ca.crt
+      
+
 ---
 # Source: cilium/templates/cilium-operator/deployment.yaml
 apiVersion: apps/v1
@@ -1613,6 +1758,7 @@ metadata:
     name: cilium-operator
     app.kubernetes.io/part-of: cilium
     app.kubernetes.io/name: cilium-operator
+    helm.sh/chart: cilium-1.20.1
 spec:
   # See docs on ServerCapabilities.LeasesResourceLock in file pkg/k8s/version/version.go
   # for more details.
@@ -1640,13 +1786,14 @@ spec:
         name: cilium-operator
         app.kubernetes.io/part-of: cilium
         app.kubernetes.io/name: cilium-operator
+        helm.sh/chart: cilium-1.20.1
     spec:
       securityContext:
         seccompProfile:
           type: RuntimeDefault
       containers:
       - name: cilium-operator
-        image: "quay.io/cilium/operator-generic:v1.19.2@sha256:e363f4f634c2a66a36e01618734ea17e7b541b949b9a5632f9c180ab16de23f0"
+        image: "quay.io/cilium/operator-generic:v1.20.1@sha256:6c3885fc7b629099fdbe2a5c87869c86feb825fa18fae299eac0f61918d16ecf"
         imagePullPolicy: IfNotPresent
         command:
         - cilium-operator-generic
@@ -1713,6 +1860,7 @@ spec:
             - ALL
         terminationMessagePolicy: FallbackToLogsOnError
       hostNetwork: true
+      hostUsers: true
       restartPolicy: Always
       priorityClassName: system-cluster-critical
       serviceAccountName: "cilium-operator"
@@ -1728,6 +1876,7 @@ spec:
             topologyKey: kubernetes.io/hostname
       nodeSelector:
         kubernetes.io/os: linux
+      
       tolerations:
         - key: node-role.kubernetes.io/control-plane
           operator: Exists
@@ -1745,6 +1894,8 @@ spec:
       - name: cilium-config-path
         configMap:
           name: cilium-config
+      
+
 ---
 # Source: cilium/templates/hubble-relay/deployment.yaml
 apiVersion: apps/v1
@@ -1756,6 +1907,7 @@ metadata:
     k8s-app: hubble-relay
     app.kubernetes.io/name: hubble-relay
     app.kubernetes.io/part-of: cilium
+    helm.sh/chart: cilium-1.20.1
 
 spec:
   replicas: 1
@@ -1773,6 +1925,7 @@ spec:
         k8s-app: hubble-relay
         app.kubernetes.io/name: hubble-relay
         app.kubernetes.io/part-of: cilium
+        helm.sh/chart: cilium-1.20.1
     spec:
       securityContext:
         fsGroup: 65532
@@ -1785,12 +1938,13 @@ spec:
             capabilities:
               drop:
               - ALL
+            readOnlyRootFilesystem: true
             runAsGroup: 65532
             runAsNonRoot: true
             runAsUser: 65532
             seccompProfile:
               type: RuntimeDefault
-          image: "quay.io/cilium/hubble-relay:v1.19.2@sha256:9987c73bad48c987fd065185535fd15a6717cbe8a8caf7fc7ef0413532cf490e"
+          image: "quay.io/cilium/hubble-relay:v1.20.1@sha256:59be0ae7d475ab9011a5e954618c0f27b5778b17140381425b308b55ba4917f4"
           imagePullPolicy: IfNotPresent
           command:
             - hubble-relay
@@ -1832,6 +1986,8 @@ spec:
             # Retry more frequently at startup so that it can be considered started more quickly.
             periodSeconds: 3
           volumeMounts:
+          - name: tmp-volume
+            mountPath: /tmp
           - name: config
             mountPath: /etc/hubble-relay
             readOnly: true
@@ -1855,6 +2011,8 @@ spec:
       nodeSelector:
         kubernetes.io/os: linux
       volumes:
+      - name: tmp-volume
+        emptyDir: {}
       - name: config
         configMap:
           name: hubble-relay-config
@@ -1875,6 +2033,8 @@ spec:
                   path: client.key
                 - key: ca.crt
                   path: hubble-server-ca.crt
+      
+
 ---
 # Source: cilium/templates/hubble-ui/deployment.yaml
 kind: Deployment
@@ -1886,6 +2046,7 @@ metadata:
     k8s-app: hubble-ui
     app.kubernetes.io/name: hubble-ui
     app.kubernetes.io/part-of: cilium
+    helm.sh/chart: cilium-1.20.1
 spec:
   replicas: 1
   selector:
@@ -1902,17 +2063,21 @@ spec:
         k8s-app: hubble-ui
         app.kubernetes.io/name: hubble-ui
         app.kubernetes.io/part-of: cilium
+        helm.sh/chart: cilium-1.20.1
     spec:
       securityContext:
         fsGroup: 1001
         runAsGroup: 1001
+        runAsNonRoot: true
         runAsUser: 1001
+        seccompProfile:
+          type: RuntimeDefault
       priorityClassName: 
       serviceAccountName: "hubble-ui"
       automountServiceAccountToken: true
       containers:
       - name: frontend
-        image: "quay.io/cilium/hubble-ui:v0.13.3@sha256:661d5de7050182d495c6497ff0b007a7a1e379648e60830dd68c4d78ae21761d"
+        image: "quay.io/cilium/hubble-ui:v0.13.5@sha256:f7d514fc54d784ed6df9d58cf0e97648b143f92b766dd1780ed3fc845bd4c516"
         imagePullPolicy: IfNotPresent
         ports:
         - name: http
@@ -1934,8 +2099,11 @@ spec:
         terminationMessagePolicy: FallbackToLogsOnError
         securityContext:
           allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
       - name: backend
-        image: "quay.io/cilium/hubble-ui-backend:v0.13.3@sha256:db1454e45dc39ca41fbf7cad31eec95d99e5b9949c39daaad0fa81ef29d56953"
+        image: "quay.io/cilium/hubble-ui-backend:v0.13.5@sha256:fac0c300ae119274edca11fd89b1ad23c788792d8bc4ea2ba631c709e8d3c688"
         imagePullPolicy: IfNotPresent
         env:
         - name: EVENTS_SERVER_PORT
@@ -1949,6 +2117,9 @@ spec:
         terminationMessagePolicy: FallbackToLogsOnError
         securityContext:
           allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
       nodeSelector:
         kubernetes.io/os: linux
       volumes:
@@ -1957,4 +2128,157 @@ spec:
           name: hubble-ui-nginx
         name: hubble-ui-nginx-conf
       - name: tmp-dir
-        emptyDir: {}
+        emptyDir:
+          sizeLimit: 256Mi
+
+---
+# Source: cilium/templates/hubble/tls-cronjob/job.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: hubble-generate-certs-1c3cf8ae6a
+  namespace: kube-system
+  labels:
+    k8s-app: hubble-generate-certs
+    app.kubernetes.io/name: hubble-generate-certs
+    app.kubernetes.io/part-of: cilium
+    helm.sh/chart: cilium-1.20.1
+spec:
+  template:
+    metadata:
+      labels:
+        k8s-app: hubble-generate-certs
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: certgen
+          image: "quay.io/cilium/certgen:v0.4.9@sha256:6213a4c54a1f36e14a9280765f058aaa2017550c28bc122f5b09ad146fd0da2b"
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            capabilities:
+              drop:
+              - ALL
+            allowPrivilegeEscalation: false
+          command:
+            - "/usr/bin/cilium-certgen"
+          # Because this is executed as a job, we pass the values as command
+          # line args instead of via config map. This allows users to inspect
+          # the values used in past runs by inspecting the completed pod.
+          args:
+            - "--ca-generate=true"
+            - "--ca-reuse-secret"
+            - "--ca-secret-namespace=kube-system"
+            - "--ca-secret-name=cilium-ca"
+            - "--ca-common-name=Cilium CA"
+            - "--ca-enforce-validity-throughout-leaves-duration=true"
+          env:
+            - name: CILIUM_CERTGEN_CONFIG
+              value: |
+                certs:
+                - name: hubble-server-certs
+                  namespace: kube-system
+                  commonName: "*.default.hubble-grpc.cilium.io"
+                  hosts:
+                  - "*.default.hubble-grpc.cilium.io"
+                  usage:
+                  - signing
+                  - key encipherment
+                  - server auth
+                  - client auth
+                  validity: 8760h
+                - name: hubble-relay-client-certs
+                  namespace: kube-system
+                  commonName: "*.hubble-relay.cilium.io"
+                  hosts:
+                  - "*.hubble-relay.cilium.io"
+                  usage:
+                  - signing
+                  - key encipherment
+                  - client auth
+                  validity: 8760h
+            
+      hostNetwork: false
+      serviceAccountName: "hubble-generate-certs"
+      automountServiceAccountToken: true
+      restartPolicy: OnFailure
+
+---
+# Source: cilium/templates/hubble/tls-cronjob/cronjob.yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: hubble-generate-certs
+  namespace: kube-system
+  labels:
+    k8s-app: hubble-generate-certs
+    app.kubernetes.io/name: hubble-generate-certs
+    app.kubernetes.io/part-of: cilium
+    helm.sh/chart: cilium-1.20.1
+spec:
+  schedule: "0 0 1 */4 *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            k8s-app: hubble-generate-certs
+        spec:
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: certgen
+              image: "quay.io/cilium/certgen:v0.4.9@sha256:6213a4c54a1f36e14a9280765f058aaa2017550c28bc122f5b09ad146fd0da2b"
+              imagePullPolicy: IfNotPresent
+              securityContext:
+                capabilities:
+                  drop:
+                  - ALL
+                allowPrivilegeEscalation: false
+              command:
+                - "/usr/bin/cilium-certgen"
+              # Because this is executed as a job, we pass the values as command
+              # line args instead of via config map. This allows users to inspect
+              # the values used in past runs by inspecting the completed pod.
+              args:
+                - "--ca-generate=true"
+                - "--ca-reuse-secret"
+                - "--ca-secret-namespace=kube-system"
+                - "--ca-secret-name=cilium-ca"
+                - "--ca-common-name=Cilium CA"
+                - "--ca-enforce-validity-throughout-leaves-duration=true"
+              env:
+                - name: CILIUM_CERTGEN_CONFIG
+                  value: |
+                    certs:
+                    - name: hubble-server-certs
+                      namespace: kube-system
+                      commonName: "*.default.hubble-grpc.cilium.io"
+                      hosts:
+                      - "*.default.hubble-grpc.cilium.io"
+                      usage:
+                      - signing
+                      - key encipherment
+                      - server auth
+                      - client auth
+                      validity: 8760h
+                    - name: hubble-relay-client-certs
+                      namespace: kube-system
+                      commonName: "*.hubble-relay.cilium.io"
+                      hosts:
+                      - "*.hubble-relay.cilium.io"
+                      usage:
+                      - signing
+                      - key encipherment
+                      - client auth
+                      validity: 8760h
+                
+          hostNetwork: false
+          serviceAccountName: "hubble-generate-certs"
+          automountServiceAccountToken: true
+          restartPolicy: OnFailure

@@ -72,15 +72,31 @@ the file in git if the revert needs to stick.
 
 ## Not managed, deliberately
 
-**`cilium-values.yaml`** — Helm values, applied by hand:
-
-```bash
-helm upgrade cilium cilium/cilium -n kube-system -f kubernetes/cilium/cilium-values.yaml
-```
+**`cilium-values.yaml`** — the complete input to the rendered manifest.
 
 Cilium cannot be managed by a controller that needs Cilium running to reach the
-API server. It is installed as a Talos `extraManifest` at bootstrap and upgraded
-manually. Note MTU (1450) lives in the `cilium-config` ConfigMap, not here.
+API server. It is installed as a Talos `extraManifest` at bootstrap, and updated
+by re-rendering `talos/manifests/cilium.yaml`:
+
+```bash
+helm repo add cilium https://helm.cilium.io && helm repo update
+helm template cilium cilium/cilium --version <ver> -n kube-system \
+  -f kubernetes/cilium/cilium-values.yaml > talos/manifests/cilium.yaml
+```
+
+**There is no Helm release.** This file used to say to run `helm upgrade cilium
+cilium/cilium -f cilium-values.yaml`; that has never worked — it fails with
+"release not found" — and it was worse than useless, because the values file did
+not then capture the Talos-specific `--set` flags the original install used. A
+render from it would have dropped `MTU: 1450`, turned off `kubeProxyReplacement`
+and pointed `cgroup-root` at `/run/cilium/cgroupv2`, any one of which breaks the
+datapath. Those settings are all in the values file now, and the file is
+verified to reproduce the committed manifest exactly.
+
+Because `extraManifests` are applied only at bootstrap, re-rendering does not
+touch a running cluster. Updates reach it by applying the changed documents by
+hand — for a settings-only change that is the `cilium-config` ConfigMap plus a
+DaemonSet restart; for a version bump it is the whole manifest.
 
 **`hubble-relay-tailscale.yaml`** — staged, never applied.
 
@@ -96,35 +112,25 @@ deliberately and be ready to run `tailscale lock sign` (see the Tailnet Lock
 gotcha in `CLAUDE.md`), rather than letting it arrive as a side effect of a
 directory move.
 
-## Hubble PKI — outstanding
+## Hubble PKI
 
-`talos/manifests/cilium.yaml` no longer carries the `cilium-ca`,
-`hubble-relay-client-certs` and `hubble-server-certs` Secrets. They were emitted
-by `hubble.tls.auto.method: helm`, which bakes freshly generated RSA private
-keys straight into the rendered output — so the committed bootstrap manifest
-held real `ca.key` and `tls.key` material, in a repo that is going public.
+`hubble.tls.auto.method` is `cronJob`, not the chart default of `helm`. The
+default generates fresh RSA private keys into the rendered output on every
+render, so the committed manifest carried real `ca.key` and `tls.key` material
+in a repo that was about to go public. They were stripped by hand, which left a
+file that could not bootstrap Hubble — and the next render would have put them
+straight back.
 
-The running cluster still holds all three in `kube-system`; Talos only applies
-`extraManifests` at bootstrap, so removing them from git changed nothing live.
-**A node bootstrapped from the current file will not bring up hubble-relay.**
+`cronJob` makes certgen produce the certificates in-cluster instead, so the
+render contains no key material and cannot regain any. The render also emits the
+certgen ServiceAccount and RBAC the stripped file was missing.
 
-Two things close this out:
+The keys that were exposed sat in git history and are not recoverable by
+deletion, so rotate them if that has not already been done:
 
-1. Re-render with `hubble.tls.auto.method: cronJob` (or `certmanager`). Cilium
-   then generates the certificates in-cluster via a certgen Job, and the render
-   stops containing key material — the same mistake cannot recur on the next
-   `helm template`. The re-render also emits the certgen ServiceAccount and RBAC
-   that the stripped file is currently missing.
-
-2. Rotate what was exposed, since the keys sat in git history and are not
-   recoverable by deletion alone:
-
-   ```bash
-   kubectl -n kube-system delete secret \
-     cilium-ca hubble-relay-client-certs hubble-server-certs
-   kubectl -n kube-system rollout restart deployment/hubble-relay
-   kubectl -n kube-system rollout restart daemonset/cilium
-   ```
-
-Until (1) lands, rebuilding a node means applying the three Secrets out of band
-before Hubble will start.
+```bash
+kubectl -n kube-system delete secret \
+  cilium-ca hubble-relay-client-certs hubble-server-certs
+kubectl -n kube-system rollout restart deployment/hubble-relay
+kubectl -n kube-system rollout restart daemonset/cilium
+```
