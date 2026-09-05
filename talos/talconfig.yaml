@@ -70,6 +70,16 @@ worker:
 patches:
   - |-
     machine:
+      kernel:
+        modules:
+          # Cilium's iptables manager refuses to start when IPv6 is enabled and
+          # these are absent -- "the needed ip6tables tables are unavailable" --
+          # taking the node's CNI with it. Talos does not load them by default.
+          # Modules load at boot only, so a node needs rebooting to pick them up.
+          - name: ip6_tables
+          - name: ip6table_mangle
+          - name: ip6table_raw
+          - name: ip6table_filter
       network:
         nameservers:
           - 10.0.0.1
