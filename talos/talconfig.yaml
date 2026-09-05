@@ -1,5 +1,8 @@
 clusterName: talos
-talosVersion: v1.13.2
+talosVersion: v1.13.10
+# Held back deliberately: Cilium 1.19 is e2e-tested only to Kubernetes 1.34 and
+# 1.20 only to 1.36, so 1.37 is outside every released Cilium. 1.36 is already a
+# stretch on 1.19 -- do not advance this until Cilium is upgraded first.
 kubernetesVersion: v1.36.1
 endpoint: https://10.0.0.200:6443
 
