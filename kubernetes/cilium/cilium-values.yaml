@@ -69,6 +69,15 @@ securityContext:
 bpf:
   masquerade: true
 
+ipv6:
+  enabled: true
+
+# Deliberately off, unlike the IPv4 side, and the reason the pod v6 range is a
+# GUA: masquerading it would put pods back behind NAT, which is what stops the
+# Tailscale proxy pods offering a direct endpoint and forces every session
+# through a relay. Turn this on and the whole exercise is undone.
+enableIPv6Masquerade: false
+
 envoy:
   enabled: false
 

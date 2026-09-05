@@ -8,6 +8,7 @@
 # file does not touch a running cluster — see the README for how updates reach
 # the live one.
 ---
+---
 # Source: cilium/templates/cilium-secrets-namespace.yaml
 apiVersion: v1
 kind: Namespace
@@ -127,7 +128,7 @@ data:
 
   # Enable IPv6 addressing. If enabled, all endpoints are allocated an IPv6
   # address.
-  enable-ipv6: "false"
+  enable-ipv6: "true"
   # Users who wish to specify their own custom CNI configuration file must set
   # custom-cni-conf to "true", otherwise Cilium may overwrite the configuration.
   custom-cni-conf: "false"
@@ -216,7 +217,7 @@ data:
   enable-ipv4-masquerade: "true"
   enable-ipv4-big-tcp: "false"
   enable-ipv6-big-tcp: "false"
-  enable-ipv6-masquerade: "true"
+  enable-ipv6-masquerade: "false"
   enable-tcx: "true"
   datapath-mode: "veth"
   enable-bpf-masquerade: "true"
