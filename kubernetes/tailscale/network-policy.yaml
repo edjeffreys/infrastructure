@@ -85,6 +85,20 @@ spec:
         - ports:
             - port: "41641"
               protocol: UDP
+    # A toPorts rule matches only that L4 port, so scoping the rule above would
+    # otherwise drop ICMP from world -- including Packet Too Big. PMTUD must
+    # keep working: the cluster runs a hand-pinned 1450 MTU, and losing it
+    # black-holes large packets rather than failing visibly.
+    - fromEntities:
+        - world
+      icmps:
+        - fields:
+            - type: 3     # v4 Destination Unreachable (carries Frag Needed)
+              family: IPv4
+            - type: 2     # v6 Packet Too Big
+              family: IPv6
+            - type: 1     # v6 Destination Unreachable
+              family: IPv6
 
 ---
 # Allow tailscale proxy pods to reach backend services
