@@ -134,6 +134,9 @@ controlPlane:
               vip:
                 ip: 10.0.0.200
       cluster:
+        # Redundant: Cilium runs kube-proxy-replacement.
+        proxy:
+          disabled: true
         extraManifests:
           - https://raw.githubusercontent.com/edjeffreys/infrastructure/master/talos/manifests/cilium.yaml
           - https://raw.githubusercontent.com/edjeffreys/infrastructure/master/talos/manifests/csi-driver-nfs.yaml
