@@ -41,6 +41,8 @@ spec:
         - fields:
             - type: 8
               family: IPv4
+            - type: 128
+              family: IPv6
   egress:
     - toEntities:
         - remote-node

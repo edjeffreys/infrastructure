@@ -47,14 +47,20 @@ spec:
   groups:
     - name: homelab.cilium
       rules:
+        # `and on()` keeps the threshold on the cluster-wide total; a plain
+        # `sum by (protocol) (...) > 5` would quietly compare each protocol
+        # alone. The grouping only carries the protocol into the notification.
         - alert: HubblePolicyDropSpike
-          expr: sum(rate(hubble_drop_total{reason="POLICY_DENIED"}[5m])) > 5
+          expr: |
+            sum by (protocol) (rate(hubble_drop_total{reason="POLICY_DENIED"}[5m]))
+              and on()
+            (sum(rate(hubble_drop_total{reason="POLICY_DENIED"}[5m])) > 5)
           for: 5m
           labels:
             severity: warning
           annotations:
-            summary: "Cilium policy drops spike"
-            description: "More than 5 policy-denied drops/sec sustained for 5 minutes. Check network policies."
+            summary: "Cilium policy drops spike ({{ $labels.protocol }})"
+            description: "{{ $labels.protocol }} policy-denied drops, over 5/sec cluster-wide sustained for 5 minutes. Break it down with: kubectl -n kube-system exec ds/cilium -- hubble observe --verdict DROPPED --last 500"
 
     - name: homelab.pods
       rules:
