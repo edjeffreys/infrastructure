@@ -336,6 +336,8 @@ spec:
 # allow-dns), so the replica's outbound 5432 has to be allowed explicitly, not
 # just the primary's inbound. The short-lived join Job carries the same
 # cnpg.io/cluster label.
+# 8000 is the instance manager's failsafe endpoint: peers poll each other so an
+# API server outage alone cannot fail the liveness probe and kill the instance.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -352,6 +354,7 @@ spec:
       toPorts:
         - ports:
             - port: "5432"
+            - port: "8000"
   egress:
     - toEndpoints:
         - matchLabels:
@@ -359,6 +362,7 @@ spec:
       toPorts:
         - ports:
             - port: "5432"
+            - port: "8000"
 
 ---
 # Prometheus scrapes the instance manager's metrics endpoint (the PodMonitor
