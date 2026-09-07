@@ -72,6 +72,14 @@ bpf:
 ipv6:
   enabled: true
 
+k8s:
+  requireIPv6PodCIDR: true
+
+# One agent at a time, not the chart default of 2 -- this is the CNI.
+updateStrategy:
+  rollingUpdate:
+    maxUnavailable: 1
+
 # Deliberately off, unlike the IPv4 side, and the reason the pod v6 range is a
 # GUA: masquerading it would put pods back behind NAT, which is what stops the
 # Tailscale proxy pods offering a direct endpoint and forces every session

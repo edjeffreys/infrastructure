@@ -250,7 +250,7 @@ data:
   enable-service-topology: "false"
   enable-l2-neigh-discovery: "false"
   k8s-require-ipv4-pod-cidr: "false"
-  k8s-require-ipv6-pod-cidr: "false"
+  k8s-require-ipv6-pod-cidr: "true"
   enable-k8s-networkpolicy: "true"
   enable-endpoint-lockdown-on-policy-overflow: "false"
   # Tell the agent to generate and write a CNI configuration file
@@ -1251,7 +1251,7 @@ spec:
       k8s-app: cilium
   updateStrategy:
     rollingUpdate:
-      maxUnavailable: 2
+      maxUnavailable: 1
     type: RollingUpdate
   template:
     metadata:
