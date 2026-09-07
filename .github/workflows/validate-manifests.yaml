@@ -8,28 +8,20 @@ name: Validate manifests
 
 on:
   pull_request:
-    # GitHub Actions does not reliably support YAML anchors, so the two path
-    # filters are duplicated on purpose. Keep them in step.
-    paths:
-      - kubernetes/**
-      - flux/**
-      - scripts/plex-postgres/**
-      - scripts/check-flux-refs.py
-      - .yamllint
-      - .github/workflows/validate-manifests.yaml
   push:
     branches: [master]
-    paths:
-      - kubernetes/**
-      - flux/**
-      - scripts/plex-postgres/**
-      - scripts/check-flux-refs.py
-      - .yamllint
-      - .github/workflows/validate-manifests.yaml
   workflow_dispatch:
 
 permissions:
   contents: read
+
+env:
+  # Stands in for the `paths:` trigger filter this replaces. `lint` and `schema`
+  # are required checks, and a workflow filtered out at the trigger reports
+  # nothing at all — the checks sit at "Expected" and the PR never becomes
+  # mergeable. Triggering always and skipping the jobs reports them as skipped,
+  # which branch protection accepts as passing.
+  MANIFEST_PATHS: '^(kubernetes/|flux/|scripts/plex-postgres/|scripts/check-flux-refs\.py$|\.yamllint$|\.github/workflows/validate-manifests\.yaml$)'
 
 # The arc-runners scale set is minRunners 0 / maxRunners 4, so a stacked push
 # should not sit waiting on a cold-started runner that is already obsolete.
@@ -38,7 +30,41 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    runs-on: arc-runners
+    outputs:
+      manifests: ${{ steps.filter.outputs.manifests }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          # The diff base is on the base branch, outside the PR ref's shallow
+          # history.
+          fetch-depth: 0
+
+      - name: Filter changed paths
+        id: filter
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          # No usable base: workflow_dispatch, or a force push where `before` is
+          # the null SHA. Validate rather than guess.
+          if [ -z "${BASE_SHA}" ] || [ "${BASE_SHA}" = "0000000000000000000000000000000000000000" ]; then
+            echo "manifests=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git diff --name-only "${BASE_SHA}" "${HEAD_SHA}" | tee "${RUNNER_TEMP}/changed.txt"
+          if grep -qE "${MANIFEST_PATHS}" "${RUNNER_TEMP}/changed.txt"; then
+            echo "manifests=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "manifests=false" >> "$GITHUB_OUTPUT"
+          fi
+
   lint:
+    needs: changes
+    if: needs.changes.outputs.manifests == 'true'
     runs-on: arc-runners
     env:
       YAMLLINT_VERSION: "1.38.0"
@@ -75,6 +101,8 @@ jobs:
         run: uv run --script scripts/check-flux-refs.py
 
   schema:
+    needs: changes
+    if: needs.changes.outputs.manifests == 'true'
     runs-on: arc-runners
     env:
       KUBECONFORM_VERSION: "v0.8.0"
