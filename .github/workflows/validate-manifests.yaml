@@ -21,7 +21,7 @@ env:
   # nothing at all — the checks sit at "Expected" and the PR never becomes
   # mergeable. Triggering always and skipping the jobs reports them as skipped,
   # which branch protection accepts as passing.
-  MANIFEST_PATHS: '^(kubernetes/|flux/|scripts/plex-postgres/|scripts/check-flux-refs\.py$|\.yamllint$|\.github/workflows/validate-manifests\.yaml$)'
+  MANIFEST_PATHS: '^(kubernetes/|flux/|talos/manifests/|talos/talconfig\.yaml$|scripts/plex-postgres/|scripts/check-flux-refs\.py$|scripts/check-cilium-k8s-compat\.py$|\.yamllint$|\.github/workflows/validate-manifests\.yaml$)'
 
 # The arc-runners scale set is minRunners 0 / maxRunners 4, so a stacked push
 # should not sit waiting on a cold-started runner that is already obsolete.
@@ -88,6 +88,12 @@ jobs:
         # duplicate keys and tabs fail the job.
         run: uvx "yamllint@${YAMLLINT_VERSION}" --format github -c .yamllint .
 
+      - name: Check Cilium supports the Kubernetes version
+        # The ceiling in renovate.json only stops Renovate offering an
+        # unsupported bump; nothing stopped the hand-made one that put 1.36.1 on
+        # Cilium 1.19.2.
+        run: uv run --script scripts/check-cilium-k8s-compat.py
+
       - name: Check Flux references
         # Catches the failure kubeconform structurally cannot see: a
         # Kustomization whose YAML is valid but whose path, sourceRef or
@@ -118,7 +124,7 @@ jobs:
         # bump when Talos moves.
         run: |
           K8S_VERSION=$(grep '^kubernetesVersion:' talos/talconfig.yaml | awk '{print $2}')
-          # talconfig.yaml carries v1.36.1; kubeconform wants 1.36.1.
+          # talconfig.yaml carries v1.36.4; kubeconform wants 1.36.4.
           echo "kubernetes=${K8S_VERSION#v}" >> $GITHUB_OUTPUT
           echo "Validating against Kubernetes ${K8S_VERSION}"
 
