@@ -4,6 +4,9 @@ Here's the compressed version:
 
 # Infrastructure Project Context
 
+**Before writing any comment, read "Comment conventions" below.** Comments are
+the one convention here that is enforced by a hook rather than by review.
+
 Homelab IaC repo. GitOps-managed. User handles all git commits — don't commit for them.
 
 ---
@@ -147,17 +150,25 @@ cannot answer that question any more.
 
 ### Comment conventions
 
-Comments explain **why**, not what — a hidden constraint, a non-obvious
-consequence, a workaround, something that would surprise the next reader. If
-removing a comment wouldn't confuse someone reading the code, don't write it;
-never restate what a well-named field or the line right above it already
-shows.
+**The rule, in full:**
 
-This matters more here than in most repos: the squashed history means
-`git log`/`git blame` can't explain a decision (see "Commit and PR
-conventions" above), so comments are one of the few places that can — and a
-comment that just restates its own line is noise crowding out the ones that
-carry real information.
+1. Do not write a comment unless the code is genuinely unintuitive without it.
+2. A comment explains **why** — a hidden constraint, a workaround, a surprising
+   consequence. Never **what**: if it restates the line below it, delete it.
+3. If it earns its place, one or two lines. Prose goes in the app's README.
+4. Applies to new comments only. Existing ones are load-bearing; leave them.
+
+Why it is worth this much space: the squashed history means `git log`/`git
+blame` can't explain a decision (see "Commit and PR conventions" above), so
+comments are one of the few places that can — and a comment restating its own
+line is noise crowding out the ones carrying real information.
+
+`.claude/hooks/comment-guard.py` enforces it. A `PostToolUse` hook, it hands
+every comment line an edit added back to the agent that wrote it, for a
+delete-or-shorten pass. Whether a comment is *necessary* is a judgement no
+linter can make, so it does not try — it forces the re-read that gets skipped.
+It is diff-scoped for point 4: a file-level density check would flag most of
+this repo, correctly-commented files included.
 
 ### Renovate
 

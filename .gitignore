@@ -72,3 +72,6 @@ talos/talsecret.yaml
 talos/clusterconfig/
 talsecret.yaml
 clusterconfig/
+
+### Claude Code ###
+.claude/settings.local.json
