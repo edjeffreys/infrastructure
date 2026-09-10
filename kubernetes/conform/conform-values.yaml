@@ -41,11 +41,14 @@ profiles:
       order: [language]
 
     job:
-      podTemplate: conform-qsv
+      podTemplate: conform-cpu
+      videoTemplate: conform-qsv
       container: conform
 
 execution:
-  tempDir: /temp
+  # Deliberately on the media export: same filesystem as the source, so conform
+  # stages by rename rather than copying the encode a second time.
+  tempDir: /data/.conform-temp
   # Not /config: that holds this file, and a ConfigMap mount is read-only.
   stateDir: /state
   workers: 1

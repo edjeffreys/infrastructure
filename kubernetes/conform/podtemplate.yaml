@@ -1,6 +1,6 @@
 ---
-# conform copies this into a Job without interpreting any of it, which is why
-# all the placement lives here rather than in conform's own config.
+# conform copies one of these into a Job without interpreting any of it, and
+# picks between them per file: qsv only when the plan re-encodes the picture.
 apiVersion: v1
 kind: PodTemplate
 metadata:
@@ -19,25 +19,23 @@ template:
     # as 3000 with no way to chown it itself.
     initContainers:
       - name: chown-state
-        image: ghcr.io/edjeffreys/conform:sha-fa20067@sha256:35aa6ce47a7f6c0080dbabddd88582eb5c0df04fed19fbeb9394f7744beaaa8d
-        # -R on /state only: the excuse ledger is a directory under it. /temp
-        # holds full working copies and is written by conform itself.
-        command: ["sh", "-c", "chown -R 3000:3000 /state && chown 3000:3000 /temp"]
+        image: ghcr.io/edjeffreys/conform:sha-eb0871d@sha256:e14e4c6e5fa9d692e9a03044781ed6c331a902c6e0277aa8d4638eb955d524cb
+        # -R because the excuse ledger is a directory under /state.
+        command: ["chown", "-R", "3000:3000", "/state"]
         securityContext:
           runAsUser: 0
         volumeMounts:
           - name: state
             mountPath: /state
-          - name: cache
-            mountPath: /temp
     containers:
       - name: conform
-        image: ghcr.io/edjeffreys/conform:sha-fa20067@sha256:35aa6ce47a7f6c0080dbabddd88582eb5c0df04fed19fbeb9394f7744beaaa8d
+        image: ghcr.io/edjeffreys/conform:sha-eb0871d@sha256:e14e4c6e5fa9d692e9a03044781ed6c331a902c6e0277aa8d4638eb955d524cb
         # No path: conform appends it, and refuses empty args.
         args:
           - apply
           - -config
           - /config/conform.yaml
+          - -verbose
         resources:
           requests:
             memory: 1Gi
@@ -51,8 +49,6 @@ template:
         volumeMounts:
           - name: media
             mountPath: /data
-          - name: cache
-            mountPath: /temp
           - name: state
             mountPath: /state
           - name: config
@@ -61,9 +57,65 @@ template:
       - name: media
         persistentVolumeClaim:
           claimName: conform-media
-      - name: cache
+      - name: state
         persistentVolumeClaim:
-          claimName: conform-cache
+          claimName: conform-state
+      - name: config
+        configMap:
+          name: conform-config
+
+---
+# The same worker without a device, for work that never reaches the encoder.
+apiVersion: v1
+kind: PodTemplate
+metadata:
+  name: conform-cpu
+  namespace: conform
+template:
+  metadata:
+    labels:
+      app: conform-worker
+  spec:
+    restartPolicy: Never
+    serviceAccountName: conform-worker
+    nodeSelector:
+      node-type: standard
+    initContainers:
+      - name: chown-state
+        image: ghcr.io/edjeffreys/conform:sha-eb0871d@sha256:e14e4c6e5fa9d692e9a03044781ed6c331a902c6e0277aa8d4638eb955d524cb
+        command: ["chown", "-R", "3000:3000", "/state"]
+        securityContext:
+          runAsUser: 0
+        volumeMounts:
+          - name: state
+            mountPath: /state
+    containers:
+      - name: conform
+        image: ghcr.io/edjeffreys/conform:sha-eb0871d@sha256:e14e4c6e5fa9d692e9a03044781ed6c331a902c6e0277aa8d4638eb955d524cb
+        args:
+          - apply
+          - -config
+          - /config/conform.yaml
+          - -verbose
+        resources:
+          requests:
+            memory: 1Gi
+            cpu: 500m
+          limits:
+            memory: 4Gi
+            # A stream copy is bounded by the export, not the CPU.
+            cpu: 1000m
+        volumeMounts:
+          - name: media
+            mountPath: /data
+          - name: state
+            mountPath: /state
+          - name: config
+            mountPath: /config
+    volumes:
+      - name: media
+        persistentVolumeClaim:
+          claimName: conform-media
       - name: state
         persistentVolumeClaim:
           claimName: conform-state
