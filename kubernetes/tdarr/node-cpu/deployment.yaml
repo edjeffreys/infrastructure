@@ -4,7 +4,8 @@ metadata:
   name: tdarr-node-cpu
   namespace: tdarr
 spec:
-  replicas: 1
+  # Zero with the rest of tdarr; see server/deployment.yaml.
+  replicas: 0
   strategy:
     # RWO longhorn config PVC. No GPU here, so unlike tdarr-node this could
     # roll — but Recreate keeps the two nodes behaving identically.

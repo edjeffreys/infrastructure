@@ -7,7 +7,6 @@ resources:
   - namespace.yaml
   - rbac.yaml
   - media-pv.yaml
-  - cache-pvc.yaml
   - state-pvc.yaml
   - podtemplate.yaml
   - deployment.yaml

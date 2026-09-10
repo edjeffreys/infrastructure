@@ -4,7 +4,9 @@ metadata:
   name: tdarr-server
   namespace: tdarr
 spec:
-  replicas: 1
+  # Zero, not deleted: conform has taken over the library, and the manifests
+  # stay so its PVCs keep the libraries and history if this is ever revived.
+  replicas: 0
   strategy:
     # RWO longhorn PVC — the old pod must release it before the new one binds.
     type: Recreate
