@@ -28,7 +28,9 @@ spec:
       initContainers:
         - name: chown-state
           image: ghcr.io/edjeffreys/conform:sha-fa20067@sha256:35aa6ce47a7f6c0080dbabddd88582eb5c0df04fed19fbeb9394f7744beaaa8d
-          command: ["chown", "3000:3000", "/state"]
+          # Recursive: the excuse ledger is a directory under /state, and a
+          # chown of the mount point alone leaves it unwritable.
+          command: ["chown", "-R", "3000:3000", "/state"]
           securityContext:
             runAsUser: 0
           volumeMounts:

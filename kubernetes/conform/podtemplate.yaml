@@ -20,7 +20,9 @@ template:
     initContainers:
       - name: chown-state
         image: ghcr.io/edjeffreys/conform:sha-fa20067@sha256:35aa6ce47a7f6c0080dbabddd88582eb5c0df04fed19fbeb9394f7744beaaa8d
-        command: ["chown", "3000:3000", "/state", "/temp"]
+        # -R on /state only: the excuse ledger is a directory under it. /temp
+        # holds full working copies and is written by conform itself.
+        command: ["sh", "-c", "chown -R 3000:3000 /state && chown 3000:3000 /temp"]
         securityContext:
           runAsUser: 0
         volumeMounts:
