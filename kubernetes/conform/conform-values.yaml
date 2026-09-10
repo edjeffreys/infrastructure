@@ -12,7 +12,9 @@ profiles:
 
     video:
       codecs: [hevc]
-      maxHeight: 1080
+      # No maxHeight: 4K is kept, and a downscale is the one change here that
+      # loses quality irreversibly.
+      #
       # scale_qsv, not scale: with -hwaccel qsv the frames are in GPU memory and
       # the software filter would download and re-upload around every scale.
       scaleFilter: "scale_qsv=h={height}:w=-1"
@@ -25,8 +27,8 @@ profiles:
 
     audio:
       languages: [eng, und]
-      codecs: [aac, ac3, eac3, opus]
-      maxChannels: 6
+      codecs: [aac, ac3, eac3, opus, truehd, dts]
+      maxChannels: 8
       order: [language, channels]
       encoder:
         name: eac3
