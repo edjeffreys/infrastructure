@@ -23,6 +23,17 @@ spec:
       serviceAccountName: conform-orchestrator
       nodeSelector:
         node-type: standard
+      # csi-driver-nfs provisions a volume root owned by root, and the image
+      # runs as 3000 with no way to chown it itself.
+      initContainers:
+        - name: chown-state
+          image: ghcr.io/edjeffreys/conform:sha-cbf036a
+          command: ["chown", "3000:3000", "/state"]
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - name: state
+              mountPath: /state
       containers:
         - name: conform
           image: ghcr.io/edjeffreys/conform:sha-cbf036a
