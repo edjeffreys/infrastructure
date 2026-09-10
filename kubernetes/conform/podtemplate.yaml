@@ -75,11 +75,23 @@ template:
   metadata:
     labels:
       app: conform-worker
+      conform-pool: cpu
   spec:
     restartPolicy: Never
     serviceAccountName: conform-worker
     nodeSelector:
       node-type: standard
+    # One per node caps concurrency, and the scheduler refills a freed slot at
+    # once rather than at the orchestrator's next pass. Scoped to this pool
+    # because a rule over every worker would let a remux block worker-0, the
+    # only node with the device.
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                conform-pool: cpu
+            topologyKey: kubernetes.io/hostname
     initContainers:
       - name: chown-state
         image: ghcr.io/edjeffreys/conform:sha-eb0871d@sha256:e14e4c6e5fa9d692e9a03044781ed6c331a902c6e0277aa8d4638eb955d524cb
