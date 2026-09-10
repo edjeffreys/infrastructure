@@ -1,0 +1,74 @@
+libraries:
+  - name: movies
+    path: /data/Movies
+    profile: standard
+  - name: tv
+    path: /data/TV
+    profile: standard
+
+profiles:
+  standard:
+    container: mkv
+
+    video:
+      # Codecs accepted as they are. Anything else is re-encoded, and a file
+      # already in this list is never touched — which is what stops a second
+      # pass re-encoding the output of the first.
+      codecs: [hevc]
+      maxHeight: 1080
+      # scale_qsv rather than scale: with -hwaccel qsv the frames live in GPU
+      # memory, and the software filter would force a download and re-upload
+      # around every scale.
+      scaleFilter: "scale_qsv=h={height}:w=-1"
+      encoder:
+        name: hevc_qsv
+        inputArgs: ["-hwaccel", "qsv", "-hwaccel_output_format", "qsv"]
+        options:
+          global_quality: "20"
+          preset: "slow"
+
+    audio:
+      languages: [eng, und]
+      codecs: [aac, ac3, eac3]
+      maxChannels: 6
+      # The order the kept streams are acceptable in — a predicate like every
+      # other rule, so a file already like this is left alone. `language` is a
+      # stream's position in the list above, `channels` puts the widest first.
+      order: [language, channels]
+      encoder:
+        name: eac3
+        options:
+          b: "640k"
+
+    subtitles:
+      languages: [eng, und]
+      codecs: [subrip, ass, hdmv_pgs_subtitle]
+      order: [language]
+
+    job:
+      podTemplate: conform-qsv
+      container: conform
+
+execution:
+  tempDir: /temp
+  # Not /config: that path holds this file, and a projected ConfigMap volume is
+  # read-only.
+  stateDir: /state
+  workers: 1
+  # Matches arr, plex and tdarr so a replaced file keeps the ownership the rest
+  # of the stack expects on the shared export.
+  owner:
+    uid: 3000
+    gid: 3000
+
+orchestrator:
+  namespace: conform
+  # One, because one i915 device is free once tdarr-node is scaled down. A
+  # higher cap would not transcode anything sooner — the extra Jobs would sit
+  # Pending on the device while still counting against the cap, which is the one
+  # state that stops the next pass making progress.
+  maxActive: 1
+  ttlSecondsAfterFinished: 3600
+  # Retries are for infrastructure faults. A file that cannot be encoded exits 0
+  # and is owned by the excuse ledger, so the two never multiply.
+  backoffLimit: 2
