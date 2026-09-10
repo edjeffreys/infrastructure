@@ -1,8 +1,5 @@
-# Explicit resources list, not autodetect: conform-values.yaml is conform's own
-# config, with no apiVersion/kind, and autodetect would fail the whole build on
-# it with "missing Resource metadata". The `-values.yaml` suffix is what keeps
-# it out of kubeconform too — it is not a Helm chart, but the exclusion the
-# suffix buys is the same one it needs.
+# conform-values.yaml is not Helm values, but it has no apiVersion/kind either,
+# so it needs the same exclusion the suffix buys from autodetect and kubeconform.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: conform
@@ -17,11 +14,8 @@ resources:
   - network-policy.yaml
 
 configMapGenerator:
-  # No name suffix hash: the PodTemplate names this ConfigMap, and kustomize
-  # does not rewrite references inside a PodTemplate the way it does inside a
-  # Deployment — a hashed name would leave every Job mounting a ConfigMap that
-  # does not exist. The reloader annotation on the Deployment is what picks up
-  # an edit instead.
+  # kustomize does not rewrite ConfigMap references inside a PodTemplate, so a
+  # hashed name would leave every Job mounting one that does not exist.
   - name: conform-config
     files:
       - conform.yaml=conform-values.yaml

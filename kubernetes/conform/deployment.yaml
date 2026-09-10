@@ -9,8 +9,8 @@ metadata:
 spec:
   replicas: 1
   strategy:
-    # The probe cache has a single owner by design. Two orchestrators overlapping
-    # during a rollout would both write it.
+    # The probe cache has one writer by design; a rolling update would briefly
+    # give it two.
     type: Recreate
   selector:
     matchLabels:
@@ -30,9 +30,7 @@ spec:
             - orchestrate
             - -config
             - /config/conform.yaml
-            # Creates no Jobs. It still reads the cluster and renders each Job
-            # in full, which is the whole of what this first deployment is for:
-            # nothing rewrites a library file until this comes off.
+            # Nothing rewrites a library file until this comes off.
             - -dry-run
             - -verbose
             - -interval
@@ -43,14 +41,10 @@ spec:
               cpu: 100m
             limits:
               memory: 1Gi
-              # ffprobe over an unscanned library is the expensive part, and it
-              # is one file at a time.
               cpu: 1000m
           volumeMounts:
             - name: media
               mountPath: /data
-              # The orchestrator only ever plans. Replacing a file is the
-              # worker's job, on a node with the device to do it.
               readOnly: true
             - name: state
               mountPath: /state

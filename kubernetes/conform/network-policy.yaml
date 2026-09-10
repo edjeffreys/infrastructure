@@ -19,12 +19,8 @@ spec:
               protocol: TCP
 
 ---
-# Only the orchestrator talks to the apiserver. A worker is handed a path on its
-# command line and needs no cluster access, so widening this to the namespace
-# would grant reachability nothing here uses.
-#
-# NFS needs no rule either way: the export is mounted by the kubelet on the
-# node, so none of that traffic leaves a pod endpoint for Cilium to police.
+# No rule for NFS anywhere in this file: the kubelet mounts the export on the
+# node, so that traffic never leaves a pod endpoint for Cilium to police.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:

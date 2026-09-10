@@ -1,11 +1,6 @@
 ---
-# Encode scratch, mounted by every Job as /temp. On `nfs` for the same reason
-# tdarr's cache is: a transcode writes a full working copy of every file it
-# touches, and longhorn would put each of those bytes on the one Proxmox disk
-# twice.
-#
-# One shared volume is safe despite the concurrency — conform names the working
-# file from a hash of the source path, so two Jobs never target the same name.
+# nfs, not longhorn, for the reason tdarr's cache is: a transcode writes a full
+# working copy of every file, and longhorn would put it on the one disk twice.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

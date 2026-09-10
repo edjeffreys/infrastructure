@@ -1,10 +1,6 @@
 ---
-# Fourth static PV against the same TrueNAS export as arr, plex and tdarr.
-# ReadWriteMany and not read-only: conform replaces library files in place once
-# a transcode has been re-planned and verified.
-#
-# Its own PV rather than a shared one because a PV binds to exactly one claim —
-# claimRef here is what stops it being taken by another namespace's PVC.
+# Fourth static PV against the same export as arr, plex and tdarr: a PV binds to
+# exactly one claim, so each namespace needs its own.
 apiVersion: v1
 kind: PersistentVolume
 metadata:

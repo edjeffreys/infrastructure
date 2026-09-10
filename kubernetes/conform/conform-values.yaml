@@ -11,14 +11,10 @@ profiles:
     container: mkv
 
     video:
-      # Codecs accepted as they are. Anything else is re-encoded, and a file
-      # already in this list is never touched — which is what stops a second
-      # pass re-encoding the output of the first.
       codecs: [hevc]
       maxHeight: 1080
-      # scale_qsv rather than scale: with -hwaccel qsv the frames live in GPU
-      # memory, and the software filter would force a download and re-upload
-      # around every scale.
+      # scale_qsv, not scale: with -hwaccel qsv the frames are in GPU memory and
+      # the software filter would download and re-upload around every scale.
       scaleFilter: "scale_qsv=h={height}:w=-1"
       encoder:
         name: hevc_qsv
@@ -31,9 +27,6 @@ profiles:
       languages: [eng, und]
       codecs: [aac, ac3, eac3]
       maxChannels: 6
-      # The order the kept streams are acceptable in — a predicate like every
-      # other rule, so a file already like this is left alone. `language` is a
-      # stream's position in the list above, `channels` puts the widest first.
       order: [language, channels]
       encoder:
         name: eac3
@@ -51,24 +44,18 @@ profiles:
 
 execution:
   tempDir: /temp
-  # Not /config: that path holds this file, and a projected ConfigMap volume is
-  # read-only.
+  # Not /config: that holds this file, and a ConfigMap mount is read-only.
   stateDir: /state
   workers: 1
-  # Matches arr, plex and tdarr so a replaced file keeps the ownership the rest
-  # of the stack expects on the shared export.
+  # Matches arr, plex and tdarr on the shared export.
   owner:
     uid: 3000
     gid: 3000
 
 orchestrator:
   namespace: conform
-  # One, because one i915 device is free once tdarr-node is scaled down. A
-  # higher cap would not transcode anything sooner — the extra Jobs would sit
-  # Pending on the device while still counting against the cap, which is the one
-  # state that stops the next pass making progress.
+  # One free i915 device. A higher cap only parks Jobs Pending on it while they
+  # still count against the cap, which is what stalls the next pass.
   maxActive: 1
   ttlSecondsAfterFinished: 3600
-  # Retries are for infrastructure faults. A file that cannot be encoded exits 0
-  # and is owned by the excuse ledger, so the two never multiply.
   backoffLimit: 2

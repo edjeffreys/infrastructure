@@ -6,9 +6,6 @@ metadata:
   namespace: conform
 
 ---
-# The Jobs need no API access at all: a worker is handed a path on its command
-# line and re-derives the plan from the same config, so nothing about the work
-# reaches it through the apiserver.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -17,13 +14,8 @@ metadata:
 automountServiceAccountToken: false
 
 ---
-# A namespaced Role, not a ClusterRole: the orchestrator only ever reads and
-# writes in the namespace its own config names.
-#
-# No delete on jobs. Finished Jobs are reaped by ttlSecondsAfterFinished, and a
-# Job's name is derived from the file — the collision on create is how a later
-# pass discovers a file is already in flight, so deleting one early would let
-# the same file be queued twice.
+# No delete: a Job's name comes from the file, and the collision on create is
+# how a later pass finds it already in flight. TTL reaps finished ones.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
