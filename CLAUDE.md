@@ -170,6 +170,13 @@ linter can make, so it does not try — it forces the re-read that gets skipped.
 It is diff-scoped for point 4: a file-level density check would flag most of
 this repo, correctly-commented files included.
 
+It watches `Bash` as well as the edit tools, because a `cat > file <<EOF`
+heredoc writes a file without ever touching them — an agent told to prefer
+shell for file edits bypasses the guard completely, and silently. Heredocs
+redirected at a source file in the repo are read directly; writes it cannot
+recover — `sed -i`, or a script fed to an interpreter — get a shorter notice
+naming the file, which is still enough to force the re-read.
+
 ### Renovate
 
 `renovate.json` at root. The `flux` manager watches `flux/**`, raises PRs for
