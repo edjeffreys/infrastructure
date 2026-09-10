@@ -41,8 +41,6 @@ spec:
             - orchestrate
             - -config
             - /config/conform.yaml
-            # Nothing rewrites a library file until this comes off.
-            - -dry-run
             - -verbose
             - -interval
             - 6h
