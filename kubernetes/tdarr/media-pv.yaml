@@ -15,6 +15,7 @@ spec:
   persistentVolumeReclaimPolicy: Retain
   mountOptions:
     - nfsvers=4.1
+    - nconnect=8
   nfs:
     server: 10.60.0.233
     path: /mnt/main0/Media
