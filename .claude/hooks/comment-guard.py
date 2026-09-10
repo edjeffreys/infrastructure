@@ -27,6 +27,17 @@ SYNTAX = {
     ".c": (["//"], [("/*", "*/")]), ".h": (["//"], [("/*", "*/")]),
 }
 
+HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
+REDIRECT = re.compile(r">>?\s*([^\s|&;<>]+)")
+TEE = re.compile(r"\btee\s+(?:-a\s+)?([^\s|&;<>]+)")
+# Writes whose content is not recoverable from the command text.
+OPAQUE = re.compile(
+    r"\bsed\s+(?:-[a-zA-Z]*i|--in-place)"
+    r"|\b(?:perl|ruby)\s+(?:-[a-zA-Z]*i|-pi)"
+    r"|open\([^)]*['\"][wa]"
+    r"|\.write_text\(|\.writeText\(|>>?\s*['\"]?\$",
+)
+
 # Machine-readable directives that happen to use comment syntax.
 DIRECTIVE = re.compile(
     r"^\s*(?:#!|#\s*(?:yamllint|noqa|type:|nosec|renovate|shellcheck|pylint|ruff|fmt:)"
@@ -68,6 +79,57 @@ def comment_lines(text, exts):
     return out
 
 
+def heredocs(command):
+    """(header line, body) for each heredoc in a shell command."""
+    lines, out, i = command.splitlines(), [], 0
+    while i < len(lines):
+        m = HEREDOC.search(lines[i])
+        if not m:
+            i += 1
+            continue
+        delim, header, body = m.group(2), lines[i], []
+        i += 1
+        while i < len(lines) and lines[i].strip() != delim:
+            body.append(lines[i])
+            i += 1
+        out.append((header, "\n".join(body)))
+        i += 1
+    return out
+
+
+def in_project(path):
+    root = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
+    return os.path.abspath(os.path.join(root, path)).startswith(os.path.abspath(root))
+
+
+def source_targets(text):
+    """Paths in `text` that this repo would treat as source."""
+    out = []
+    for m in re.finditer(r"[\w./~-]+\.[A-Za-z]+", text):
+        p = m.group(0)
+        if os.path.splitext(p)[1].lower() in SYNTAX and in_project(p) and p not in out:
+            out.append(p)
+    return out
+
+
+def bash_added(command):
+    """(path, comments) per source file a shell command writes, plus opaque paths."""
+    reports, opaque = [], []
+    for header, body in heredocs(command):
+        lhs = header.split("<<")[0]
+        m = TEE.search(lhs) or REDIRECT.search(lhs)
+        target = m.group(1).strip("\"'") if m else None
+        ext = os.path.splitext(target or "")[1].lower()
+        if target and ext in SYNTAX and in_project(target):
+            reports.append((target, comment_lines(body, SYNTAX[ext])))
+        elif OPAQUE.search(command):
+            opaque.extend(source_targets(command))
+    if OPAQUE.search(command) and not heredocs(command):
+        opaque.extend(source_targets(command))
+    named = {p for p, _ in reports}
+    return reports, [p for p in dict.fromkeys(opaque) if p not in named]
+
+
 def added(payload):
     """Comment lines this tool call introduced, oldest edit first."""
     name = payload.get("tool_name", "")
@@ -106,8 +168,14 @@ def main():
     except Exception:
         return 0
 
-    found = added(payload)
-    if not found:
+    inp = payload.get("tool_input", {}) or {}
+    opaque = []
+    if payload.get("tool_name") == "Bash":
+        groups, opaque = bash_added(inp.get("command", "") or "")
+    else:
+        groups = [(inp.get("file_path", "the file"), added(payload))]
+
+    if not any(c for _, c in groups) and not opaque:
         return 0
 
     # One report per distinct comment per session: re-editing a nearby line must
@@ -119,26 +187,48 @@ def main():
     except OSError:
         seen = set()
 
-    fresh = [(t, f) for t, f in found
-             if hashlib.sha1(t.encode()).hexdigest()[:12] not in seen]
-    if not fresh:
+    def key(text):
+        return hashlib.sha1(text.encode()).hexdigest()[:12]
+
+    fresh = [(label, [(t, f) for t, f in found if key(t) not in seen])
+             for label, found in groups]
+    fresh = [(label, found) for label, found in fresh if found]
+    opaque = [p for p in opaque if key("opaque:" + p) not in seen]
+    if not fresh and not opaque:
         return 0
 
     try:
         with open(path, "a") as fh:
-            for text, _ in fresh:
-                fh.write(hashlib.sha1(text.encode()).hexdigest()[:12] + "\n")
+            for _, found in fresh:
+                for text, _ in found:
+                    fh.write(key(text) + "\n")
+            for p in opaque:
+                fh.write(key("opaque:" + p) + "\n")
     except OSError:
         pass
 
-    listing = "\n".join(f"  {t[:120]}" for t, _ in fresh[:15])
-    if len(fresh) > 15:
-        listing += f"\n  ... and {len(fresh) - 15} more"
+    total = sum(len(f) for _, f in fresh)
+    blocks = []
+    for label, found in fresh:
+        listing = "\n".join(f"  {t[:120]}" for t, _ in found[:15])
+        if len(found) > 15:
+            listing += f"\n  ... and {len(found) - 15} more"
+        blocks.append(f"{label}:\n{listing}")
+    report = "\n".join(blocks)
+
+    if opaque:
+        note = (
+            "Wrote via a script or in-place edit, so the added comments could not "
+            "be read: " + ", ".join(opaque) +
+            "\nRe-read what you added to those against the rule below."
+        )
+        report = f"{report}\n\n{note}" if report else note
+
+    headline = (f"COMMENT CHECK — this edit added {total} comment line(s):"
+                if total else "COMMENT CHECK — this edit wrote comments this hook could not read:")
 
     print(
-        f"COMMENT CHECK — this edit added {len(fresh)} comment line(s) to "
-        f"{payload.get('tool_input', {}).get('file_path', 'the file')}:\n"
-        f"{listing}\n\n"
+        f"{headline}\n{report}\n\n"
         "Rule: comment ONLY to explain a non-obvious why — a hidden constraint, "
         "a workaround, a surprising consequence. Never restate what the line below it "
         "already says. Keep any that survive to one or two lines.\n\n"
