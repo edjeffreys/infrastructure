@@ -4,7 +4,10 @@ metadata:
   name: tdarr-node
   namespace: tdarr
 spec:
-  replicas: 1
+  # Scaled to zero, not deleted: conform replaces this node and needs the one
+  # i915 device it held. The manifest stays so reverting is this line, and the
+  # Tdarr server keeps its libraries and history either way.
+  replicas: 0
   strategy:
     # RWO longhorn PVC, and — more restrictively — the GPU. The plugin
     # advertises 2 i915 devices and plex permanently holds one, so exactly one

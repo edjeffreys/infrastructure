@@ -1,0 +1,40 @@
+---
+# Fourth static PV against the same TrueNAS export as arr, plex and tdarr.
+# ReadWriteMany and not read-only: conform replaces library files in place once
+# a transcode has been re-planned and verified.
+#
+# Its own PV rather than a shared one because a PV binds to exactly one claim —
+# claimRef here is what stops it being taken by another namespace's PVC.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: conform-media-nfs
+spec:
+  capacity:
+    storage: 10Ti
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  mountOptions:
+    - nfsvers=4.1
+  nfs:
+    server: 10.60.0.233
+    path: /mnt/main0/Media
+  claimRef:
+    namespace: conform
+    name: conform-media
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: conform-media
+  namespace: conform
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""
+  resources:
+    requests:
+      storage: 10Ti
+  volumeName: conform-media-nfs

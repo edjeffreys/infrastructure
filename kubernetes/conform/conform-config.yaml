@@ -1,0 +1,78 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: conform-config
+  namespace: conform
+data:
+  conform.yaml: |
+    libraries:
+      - name: movies
+        path: /data/Movies
+        profile: standard
+      - name: tv
+        path: /data/TV
+        profile: standard
+        exclude:
+          - "*/Season 00/*"
+
+    profiles:
+      standard:
+        container: mkv
+
+        video:
+          codecs: [hevc]
+          maxHeight: 1080
+          scaleFilter: "scale_qsv=h={height}:w=-1"
+          encoder:
+            name: hevc_qsv
+            inputArgs: ["-hwaccel", "qsv", "-hwaccel_output_format", "qsv"]
+            options:
+              global_quality: "24"
+              preset: "medium"
+
+        audio:
+          languages: [eng, und]
+          codecs: [aac, ac3, eac3]
+          maxChannels: 6
+          order: [language, channels]
+          encoder:
+            name: eac3
+            options:
+              b: "640k"
+          stereoCompanion:
+            encoder:
+              name: aac
+              options:
+                b: "192k"
+
+        subtitles:
+          languages: [eng, und]
+          codecs: [subrip, ass, hdmv_pgs_subtitle]
+          order: [language]
+
+        job:
+          podTemplate: conform-qsv
+          container: conform
+
+    execution:
+      tempDir: /temp
+      # Not /config: that path holds this ConfigMap, and a projected ConfigMap
+      # volume is read-only.
+      stateDir: /state
+      workers: 1
+      # Matches arr, plex and tdarr so a replaced file keeps the ownership the
+      # rest of the stack expects on the shared export.
+      owner:
+        uid: 3000
+        gid: 3000
+
+    orchestrator:
+      namespace: conform
+      # One, because one i915 device is free once tdarr-node is scaled down. A
+      # higher cap would not transcode anything sooner — the extra Jobs would
+      # sit Pending on the device while still counting against the cap, which
+      # is the one state that stops the next pass making progress.
+      maxActive: 1
+      ttlSecondsAfterFinished: 3600
+      backoffLimit: 2

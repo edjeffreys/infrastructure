@@ -1,0 +1,19 @@
+---
+# Probe cache and excuse ledger, mounted as /state by the orchestrator and by
+# every Job. RWX because both mount it, and it is the one piece of shared state
+# the design allows: the orchestrator owns the probe cache and workers only read
+# it, while each worker writes its own per-file excuse sidecar.
+#
+# Disposable. Deleting it costs a re-probe of the library, never correctness.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: conform-state
+  namespace: conform
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: nfs
+  resources:
+    requests:
+      storage: 5Gi

@@ -1,0 +1,66 @@
+---
+# Placement for one worker Job. conform copies this template, appends the file
+# path to the named container's args and wraps the result in a Job — it never
+# interprets what is here, which is why the device request, the node selector
+# and the mounts all live in this file rather than in conform's own config.
+#
+# A PodTemplate is an inert core/v1 object: nothing schedules it, and editing it
+# changes only the Jobs created after the edit.
+apiVersion: v1
+kind: PodTemplate
+metadata:
+  name: conform-qsv
+  namespace: conform
+template:
+  metadata:
+    labels:
+      app: conform-worker
+  spec:
+    restartPolicy: Never
+    serviceAccountName: conform-worker
+    # The one node holding the passed-through iGPU, same pin as plex and the
+    # tdarr node this replaces.
+    nodeSelector:
+      gpu: intel
+    containers:
+      - name: conform
+        image: ghcr.io/edjeffreys/conform:sha-cbf036a
+        # The subcommand and its flags, with no path: conform appends that, and
+        # refuses to build a Job from a container whose args are empty.
+        args:
+          - apply
+          - -config
+          - /config/conform.yaml
+        resources:
+          requests:
+            memory: 1Gi
+            cpu: 500m
+          limits:
+            memory: 4Gi
+            # Same reasoning as the tdarr node it takes the device from: plex
+            # shares this node, and starving its live transcodes to finish a
+            # background encode sooner is the wrong trade.
+            cpu: 2000m
+            gpu.intel.com/i915: 1
+        volumeMounts:
+          - name: media
+            mountPath: /data
+          - name: cache
+            mountPath: /temp
+          - name: state
+            mountPath: /state
+          - name: config
+            mountPath: /config
+    volumes:
+      - name: media
+        persistentVolumeClaim:
+          claimName: conform-media
+      - name: cache
+        persistentVolumeClaim:
+          claimName: conform-cache
+      - name: state
+        persistentVolumeClaim:
+          claimName: conform-state
+      - name: config
+        configMap:
+          name: conform-config

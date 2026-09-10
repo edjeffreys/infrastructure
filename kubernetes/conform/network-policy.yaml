@@ -1,0 +1,43 @@
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: conform
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+
+---
+# Only the orchestrator talks to the apiserver. A worker is handed a path on its
+# command line and needs no cluster access, so widening this to the namespace
+# would grant reachability nothing here uses.
+#
+# NFS needs no rule either way: the export is mounted by the kubelet on the
+# node, so none of that traffic leaves a pod endpoint for Cilium to police.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-kube-apiserver
+  namespace: conform
+spec:
+  endpointSelector:
+    matchLabels:
+      app: conform-orchestrator
+  egress:
+    - toEntities:
+        - kube-apiserver
+    - toServices:
+        - k8sService:
+            serviceName: kubernetes
+            namespace: default

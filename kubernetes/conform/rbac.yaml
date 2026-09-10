@@ -1,0 +1,53 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: conform-orchestrator
+  namespace: conform
+
+---
+# The Jobs need no API access at all: a worker is handed a path on its command
+# line and re-derives the plan from the same config, so nothing about the work
+# reaches it through the apiserver.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: conform-worker
+  namespace: conform
+automountServiceAccountToken: false
+
+---
+# A namespaced Role, not a ClusterRole: the orchestrator only ever reads and
+# writes in the namespace its own config names.
+#
+# No delete on jobs. Finished Jobs are reaped by ttlSecondsAfterFinished, and a
+# Job's name is derived from the file — the collision on create is how a later
+# pass discovers a file is already in flight, so deleting one early would let
+# the same file be queued twice.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: conform-orchestrator
+  namespace: conform
+rules:
+  - apiGroups: [""]
+    resources: ["podtemplates"]
+    verbs: ["get"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "create"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: conform-orchestrator
+  namespace: conform
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: conform-orchestrator
+subjects:
+  - kind: ServiceAccount
+    name: conform-orchestrator
+    namespace: conform
