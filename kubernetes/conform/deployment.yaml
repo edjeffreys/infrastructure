@@ -43,9 +43,6 @@ spec:
             - orchestrate
             - -config
             - /config/conform.yaml
-            # Paused while conform#15 and conform#16 are worked on. The pass
-            # still runs and reports; it just creates no Jobs.
-            - -dry-run
             - -verbose
             - -interval
             - 6h
