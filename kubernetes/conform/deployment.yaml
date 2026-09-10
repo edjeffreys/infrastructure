@@ -27,7 +27,7 @@ spec:
       # runs as 3000 with no way to chown it itself.
       initContainers:
         - name: chown-state
-          image: ghcr.io/edjeffreys/conform:sha-cbf036a
+          image: ghcr.io/edjeffreys/conform:sha-fa20067@sha256:35aa6ce47a7f6c0080dbabddd88582eb5c0df04fed19fbeb9394f7744beaaa8d
           command: ["chown", "3000:3000", "/state"]
           securityContext:
             runAsUser: 0
@@ -36,7 +36,7 @@ spec:
               mountPath: /state
       containers:
         - name: conform
-          image: ghcr.io/edjeffreys/conform:sha-cbf036a
+          image: ghcr.io/edjeffreys/conform:sha-fa20067@sha256:35aa6ce47a7f6c0080dbabddd88582eb5c0df04fed19fbeb9394f7744beaaa8d
           args:
             - orchestrate
             - -config

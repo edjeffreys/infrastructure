@@ -19,7 +19,7 @@ template:
     # as 3000 with no way to chown it itself.
     initContainers:
       - name: chown-state
-        image: ghcr.io/edjeffreys/conform:sha-cbf036a
+        image: ghcr.io/edjeffreys/conform:sha-fa20067@sha256:35aa6ce47a7f6c0080dbabddd88582eb5c0df04fed19fbeb9394f7744beaaa8d
         command: ["chown", "3000:3000", "/state", "/temp"]
         securityContext:
           runAsUser: 0
@@ -30,7 +30,7 @@ template:
             mountPath: /temp
     containers:
       - name: conform
-        image: ghcr.io/edjeffreys/conform:sha-cbf036a
+        image: ghcr.io/edjeffreys/conform:sha-fa20067@sha256:35aa6ce47a7f6c0080dbabddd88582eb5c0df04fed19fbeb9394f7744beaaa8d
         # No path: conform appends it, and refuses empty args.
         args:
           - apply
