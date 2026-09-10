@@ -44,8 +44,10 @@ spec:
             - -config
             - /config/conform.yaml
             - -verbose
+            # Short because maxActive is small: the pass is what refills the
+            # three slots, and a warm probe cache makes it cost seconds.
             - -interval
-            - 6h
+            - 10m
           resources:
             requests:
               memory: 256Mi
