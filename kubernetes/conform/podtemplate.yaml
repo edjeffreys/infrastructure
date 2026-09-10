@@ -38,12 +38,10 @@ template:
           - -verbose
         resources:
           requests:
-            memory: 512Mi
+            memory: 1Gi
             cpu: 250m
           limits:
-            memory: 4Gi
-            # Held down because plex shares this node and its live transcodes
-            # matter more than a background encode.
+            memory: 1Gi
             cpu: 2000m
             gpu.intel.com/i915: 1
         volumeMounts:
