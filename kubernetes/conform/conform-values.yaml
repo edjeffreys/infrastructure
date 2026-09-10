@@ -59,8 +59,8 @@ execution:
 
 orchestrator:
   namespace: conform
-  # The export is the bottleneck: ten concurrent remuxes measured 12-16MB/s
-  # each where one alone got 90+. Low because raising it only divides the pipe.
-  maxActive: 3
+  # Queue depth again, not concurrency: the anti-affinity in podtemplate.yaml
+  # is what limits how many run, and it does so without waiting for a pass.
+  maxActive: 250
   ttlSecondsAfterFinished: 3600
   backoffLimit: 2
