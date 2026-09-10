@@ -108,14 +108,11 @@ template:
           - /config/conform.yaml
           - -verbose
         resources:
-          # Goldilocks measures a stream copy at 15m/100Mi; this is headroom
-          # over that, not a guess.
           requests:
-            memory: 256Mi
+            memory: 1Gi
             cpu: 100m
           limits:
-            memory: 2Gi
-            # A stream copy is bounded by the export, not the CPU.
+            memory: 1Gi
             cpu: 1000m
         volumeMounts:
           - name: media
