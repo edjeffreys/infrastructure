@@ -1,0 +1,62 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: conform-orchestrator
+  namespace: conform
+  annotations:
+    reloader.stakater.com/auto: "true"
+spec:
+  replicas: 1
+  strategy:
+    # The probe cache has one writer by design; a rolling update would briefly
+    # give it two.
+    type: Recreate
+  selector:
+    matchLabels:
+      app: conform-orchestrator
+  template:
+    metadata:
+      labels:
+        app: conform-orchestrator
+    spec:
+      serviceAccountName: conform-orchestrator
+      nodeSelector:
+        node-type: standard
+      containers:
+        - name: conform
+          image: ghcr.io/edjeffreys/conform:sha-cbf036a
+          args:
+            - orchestrate
+            - -config
+            - /config/conform.yaml
+            # Nothing rewrites a library file until this comes off.
+            - -dry-run
+            - -verbose
+            - -interval
+            - 6h
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: 100m
+            limits:
+              memory: 1Gi
+              cpu: 1000m
+          volumeMounts:
+            - name: media
+              mountPath: /data
+              readOnly: true
+            - name: state
+              mountPath: /state
+            - name: config
+              mountPath: /config
+      volumes:
+        - name: media
+          persistentVolumeClaim:
+            claimName: conform-media
+        - name: state
+          persistentVolumeClaim:
+            claimName: conform-state
+        - name: config
+          configMap:
+            name: conform-config

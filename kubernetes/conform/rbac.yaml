@@ -1,0 +1,45 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: conform-orchestrator
+  namespace: conform
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: conform-worker
+  namespace: conform
+automountServiceAccountToken: false
+
+---
+# No delete: a Job's name comes from the file, and the collision on create is
+# how a later pass finds it already in flight. TTL reaps finished ones.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: conform-orchestrator
+  namespace: conform
+rules:
+  - apiGroups: [""]
+    resources: ["podtemplates"]
+    verbs: ["get"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "create"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: conform-orchestrator
+  namespace: conform
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: conform-orchestrator
+subjects:
+  - kind: ServiceAccount
+    name: conform-orchestrator
+    namespace: conform

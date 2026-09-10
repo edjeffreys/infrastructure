@@ -1,0 +1,57 @@
+---
+# conform copies this into a Job without interpreting any of it, which is why
+# all the placement lives here rather than in conform's own config.
+apiVersion: v1
+kind: PodTemplate
+metadata:
+  name: conform-qsv
+  namespace: conform
+template:
+  metadata:
+    labels:
+      app: conform-worker
+  spec:
+    restartPolicy: Never
+    serviceAccountName: conform-worker
+    nodeSelector:
+      gpu: intel
+    containers:
+      - name: conform
+        image: ghcr.io/edjeffreys/conform:sha-cbf036a
+        # No path: conform appends it, and refuses empty args.
+        args:
+          - apply
+          - -config
+          - /config/conform.yaml
+        resources:
+          requests:
+            memory: 1Gi
+            cpu: 500m
+          limits:
+            memory: 4Gi
+            # Held down because plex shares this node and its live transcodes
+            # matter more than a background encode.
+            cpu: 2000m
+            gpu.intel.com/i915: 1
+        volumeMounts:
+          - name: media
+            mountPath: /data
+          - name: cache
+            mountPath: /temp
+          - name: state
+            mountPath: /state
+          - name: config
+            mountPath: /config
+    volumes:
+      - name: media
+        persistentVolumeClaim:
+          claimName: conform-media
+      - name: cache
+        persistentVolumeClaim:
+          claimName: conform-cache
+      - name: state
+        persistentVolumeClaim:
+          claimName: conform-state
+      - name: config
+        configMap:
+          name: conform-config

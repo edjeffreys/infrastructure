@@ -1,0 +1,15 @@
+---
+# Probe cache and excuse ledger. Disposable — deleting it costs a re-probe of
+# the library, never correctness.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: conform-state
+  namespace: conform
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: nfs
+  resources:
+    requests:
+      storage: 5Gi

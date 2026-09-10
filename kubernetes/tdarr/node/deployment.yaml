@@ -4,7 +4,9 @@ metadata:
   name: tdarr-node
   namespace: tdarr
 spec:
-  replicas: 1
+  # Zero, not deleted: conform took the i915 device this held, and reverting
+  # that is this line.
+  replicas: 0
   strategy:
     # RWO longhorn PVC, and — more restrictively — the GPU. The plugin
     # advertises 2 i915 devices and plex permanently holds one, so exactly one

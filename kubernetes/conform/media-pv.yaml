@@ -1,0 +1,36 @@
+---
+# Fourth static PV against the same export as arr, plex and tdarr: a PV binds to
+# exactly one claim, so each namespace needs its own.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: conform-media-nfs
+spec:
+  capacity:
+    storage: 10Ti
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  mountOptions:
+    - nfsvers=4.1
+  nfs:
+    server: 10.60.0.233
+    path: /mnt/main0/Media
+  claimRef:
+    namespace: conform
+    name: conform-media
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: conform-media
+  namespace: conform
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""
+  resources:
+    requests:
+      storage: 10Ti
+  volumeName: conform-media-nfs

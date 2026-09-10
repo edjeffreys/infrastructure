@@ -1,0 +1,23 @@
+# conform-values.yaml is not Helm values, but it has no apiVersion/kind either,
+# so it needs the same exclusion the suffix buys from autodetect and kubeconform.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: conform
+resources:
+  - namespace.yaml
+  - rbac.yaml
+  - media-pv.yaml
+  - cache-pvc.yaml
+  - state-pvc.yaml
+  - podtemplate.yaml
+  - deployment.yaml
+  - network-policy.yaml
+
+configMapGenerator:
+  # kustomize does not rewrite ConfigMap references inside a PodTemplate, so a
+  # hashed name would leave every Job mounting one that does not exist.
+  - name: conform-config
+    files:
+      - conform.yaml=conform-values.yaml
+    options:
+      disableNameSuffixHash: true
