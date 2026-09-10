@@ -25,7 +25,7 @@ profiles:
 
     audio:
       languages: [eng, und]
-      codecs: [aac, ac3, eac3]
+      codecs: [aac, ac3, eac3, opus]
       maxChannels: 6
       order: [language, channels]
       encoder:
