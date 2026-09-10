@@ -59,8 +59,8 @@ execution:
 
 orchestrator:
   namespace: conform
-  # Queue depth, not concurrency: the one i915 device serialises them anyway,
-  # and stopping the queue means deleting Jobs, not scaling the orchestrator.
-  maxActive: 250
+  # The export is the bottleneck: ten concurrent remuxes measured 12-16MB/s
+  # each where one alone got 90+. Low because raising it only divides the pipe.
+  maxActive: 3
   ttlSecondsAfterFinished: 3600
   backoffLimit: 2

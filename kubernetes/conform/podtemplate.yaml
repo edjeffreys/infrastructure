@@ -38,8 +38,8 @@ template:
           - -verbose
         resources:
           requests:
-            memory: 1Gi
-            cpu: 500m
+            memory: 512Mi
+            cpu: 250m
           limits:
             memory: 4Gi
             # Held down because plex shares this node and its live transcodes
@@ -98,11 +98,13 @@ template:
           - /config/conform.yaml
           - -verbose
         resources:
+          # Goldilocks measures a stream copy at 15m/100Mi; this is headroom
+          # over that, not a guess.
           requests:
-            memory: 1Gi
-            cpu: 500m
+            memory: 256Mi
+            cpu: 100m
           limits:
-            memory: 4Gi
+            memory: 2Gi
             # A stream copy is bounded by the export, not the CPU.
             cpu: 1000m
         volumeMounts:
