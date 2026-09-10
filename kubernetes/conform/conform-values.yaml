@@ -3,7 +3,7 @@ libraries:
     path: /data/Movies
     profile: standard
   - name: tv
-    path: /data/TV
+    path: /data/TV Shows
     profile: standard
 
 profiles:
