@@ -216,6 +216,29 @@ spec:
             - port: "7878"
 
 ---
+# world only reaches outside the cluster, so the Connect → Webhook needs its own.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: conform-webhook-egress
+  namespace: arr
+spec:
+  endpointSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [sonarr, radarr]
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: conform
+            k8s:app: conform-orchestrator
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+
+---
 # Tdarr calls the Sonarr/Radarr APIs after it rewrites a file, so the arr app
 # re-reads the new size, codec and duration instead of holding stale metadata
 # from before the transcode. Kept separate from the seerr policies above

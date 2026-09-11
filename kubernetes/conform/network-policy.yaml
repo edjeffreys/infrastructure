@@ -37,3 +37,26 @@ spec:
         - k8sService:
             serviceName: kubernetes
             namespace: default
+
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-arr-webhook
+  namespace: conform
+spec:
+  endpointSelector:
+    matchLabels:
+      app: conform-orchestrator
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: arr
+            k8s:app: sonarr
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: arr
+            k8s:app: radarr
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP

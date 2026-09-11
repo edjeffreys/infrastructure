@@ -66,6 +66,10 @@ execution:
     uid: 3000
     gid: 3000
 
+webhook:
+  # No rewrite: sonarr and radarr mount the same export at /data.
+  listen: ":8080"
+
 orchestrator:
   namespace: conform
   # Queue depth again, not concurrency: the anti-affinity in podtemplate.yaml

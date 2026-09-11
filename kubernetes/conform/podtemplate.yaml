@@ -19,7 +19,7 @@ template:
     # as 3000 with no way to chown it itself.
     initContainers:
       - name: chown-state
-        image: ghcr.io/edjeffreys/conform:sha-eb0871d@sha256:e14e4c6e5fa9d692e9a03044781ed6c331a902c6e0277aa8d4638eb955d524cb
+        image: ghcr.io/edjeffreys/conform:sha-d5e365b@sha256:6a5485c86541bd695217f3551ae8ba3238cf328531aadf73c37a23b197b8fb2d
         # -R because the excuse ledger is a directory under /state.
         command: ["chown", "-R", "3000:3000", "/state"]
         securityContext:
@@ -29,7 +29,7 @@ template:
             mountPath: /state
     containers:
       - name: conform
-        image: ghcr.io/edjeffreys/conform:sha-eb0871d@sha256:e14e4c6e5fa9d692e9a03044781ed6c331a902c6e0277aa8d4638eb955d524cb
+        image: ghcr.io/edjeffreys/conform:sha-d5e365b@sha256:6a5485c86541bd695217f3551ae8ba3238cf328531aadf73c37a23b197b8fb2d
         # No path: conform appends it, and refuses empty args.
         args:
           - apply
@@ -92,7 +92,7 @@ template:
             topologyKey: kubernetes.io/hostname
     initContainers:
       - name: chown-state
-        image: ghcr.io/edjeffreys/conform:sha-eb0871d@sha256:e14e4c6e5fa9d692e9a03044781ed6c331a902c6e0277aa8d4638eb955d524cb
+        image: ghcr.io/edjeffreys/conform:sha-d5e365b@sha256:6a5485c86541bd695217f3551ae8ba3238cf328531aadf73c37a23b197b8fb2d
         command: ["chown", "-R", "3000:3000", "/state"]
         securityContext:
           runAsUser: 0
@@ -101,7 +101,7 @@ template:
             mountPath: /state
     containers:
       - name: conform
-        image: ghcr.io/edjeffreys/conform:sha-eb0871d@sha256:e14e4c6e5fa9d692e9a03044781ed6c331a902c6e0277aa8d4638eb955d524cb
+        image: ghcr.io/edjeffreys/conform:sha-d5e365b@sha256:6a5485c86541bd695217f3551ae8ba3238cf328531aadf73c37a23b197b8fb2d
         args:
           - apply
           - -config
