@@ -10,6 +10,7 @@ resources:
   - state-pvc.yaml
   - podtemplate.yaml
   - deployment.yaml
+  - service.yaml
   - network-policy.yaml
 
 configMapGenerator:
