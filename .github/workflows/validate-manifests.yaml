@@ -80,7 +80,7 @@ jobs:
       # major tags up to v7, so `@v10` does not resolve and the job dies at
       # "Prepare all required actions" with "unable to find version v10".
       - name: Set up uv
-        uses: astral-sh/setup-uv@v10.0.1
+        uses: astral-sh/setup-uv@v10.1.0
 
       - name: yamllint
         # No --strict: .yamllint extends `relaxed`, so cosmetic findings are
