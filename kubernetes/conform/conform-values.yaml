@@ -15,24 +15,39 @@ profiles:
       # No maxHeight: 4K is kept, and a downscale is the one change here that
       # loses quality irreversibly.
       #
-      # vaapi rather than qsv: same silicon, but the image ships oneVPL's
-      # dispatcher with no runtime behind it, so hevc_qsv fails to start.
+      # vaapi rather than qsv: chosen when the image shipped oneVPL's dispatcher
+      # and no runtime (#72). It ships libmfx-gen1.2 now, so qsv is worth
+      # retesting — by initialising the encoder, not by reading vainfo.
       #
       # scale_vaapi, not scale: the frames are in GPU memory, and the software
       # filter would download and re-upload around every scale.
-      scaleFilter: "scale_vaapi=h={height}:w=-1"
+      #
+      # w={width} resolves to -2, not -1: an odd width would be rejected.
+      scaleFilter: "scale_vaapi=w={width}:h={height}"
       encoder:
         name: hevc_vaapi
+        # A named device rather than a path, because hwupload below needs one and
+        # -filter_hw_device is the only way to hand it to the filter graph.
         inputArgs:
+          - -init_hw_device
+          - "vaapi=conform:/dev/dri/renderD128"
+          - -filter_hw_device
+          - conform
           - -hwaccel
           - vaapi
           - -hwaccel_output_format
           - vaapi
           - -hwaccel_device
-          - /dev/dri/renderD128
+          - conform
+        # Offering p010le is what keeps a 10-bit source 10-bit: with nv12 alone
+        # the upload negotiates the depth down, and codec, duration and size all
+        # still come out right. hwupload uploads what the GPU could not decode.
+        filter: "format=nv12|p010le|vaapi,hwupload"
         options:
-          # No preset: vaapi has no such option and rejects it.
-          global_quality: "20"
+          # No preset: vaapi has no such option and rejects it. compression_level
+          # is the equivalent, 1 being the slowest and best the driver offers.
+          compression_level: "1"
+          global_quality: "18"
 
     audio:
       languages: [eng, und]

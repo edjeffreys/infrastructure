@@ -27,7 +27,7 @@ spec:
       # runs as 3000 with no way to chown it itself.
       initContainers:
         - name: chown-state
-          image: ghcr.io/edjeffreys/conform:sha-5741f9c@sha256:2808e9f778e08156b21579861eee03a50ad16822bb86d0c61c8ea4931b6c39ad
+          image: ghcr.io/edjeffreys/conform:sha-40aaa33@sha256:436056d285ad89cd46add38361fde69b2c253034e013801fcb078e3efd479f89
           # Recursive: the excuse ledger is a directory under /state, and a
           # chown of the mount point alone leaves it unwritable.
           command: ["chown", "-R", "3000:3000", "/state"]
@@ -38,7 +38,7 @@ spec:
               mountPath: /state
       containers:
         - name: conform
-          image: ghcr.io/edjeffreys/conform:sha-5741f9c@sha256:2808e9f778e08156b21579861eee03a50ad16822bb86d0c61c8ea4931b6c39ad
+          image: ghcr.io/edjeffreys/conform:sha-40aaa33@sha256:436056d285ad89cd46add38361fde69b2c253034e013801fcb078e3efd479f89
           args:
             - orchestrate
             - -config
