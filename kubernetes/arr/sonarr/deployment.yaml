@@ -23,7 +23,7 @@ spec:
 
       containers:
         - name: sonarr
-          image: ghcr.io/hotio/sonarr:release-4.0.19.2979@sha256:a16f50198a8db06301fb49e0c2d551261e8eb43323d482e919fa8e44ba804534
+          image: ghcr.io/hotio/sonarr:release-4.0.20.3014@sha256:4c29ee880945cf42ce3f5d7944ce95145f6120d943f7a912343fe87fb836e63b
           env:
             - name: PUID
               value: "3000"
