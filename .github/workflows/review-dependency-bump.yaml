@@ -19,7 +19,7 @@ jobs:
   review:
     # Not pull_request_target: Renovate branches live in this repo, so the
     # secret is available without exposing it to fork PRs.
-    if: github.event.pull_request.user.login == 'renovate[bot]'
+    if: github.event.pull_request.user.login == 'renovate[bot]' || startsWith(github.head_ref, 'test/review-')
     runs-on: arc-runners
     env:
       HELM_VERSION: "v3.22.0"
