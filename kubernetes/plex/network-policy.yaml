@@ -66,10 +66,6 @@ spec:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: arr
             k8s:app: sonarr
-        # Tdarr triggers a partial library scan after rewriting a file, so Plex
-        # re-reads the stream info instead of serving stale analysis.
-        - matchLabels:
-            k8s:io.kubernetes.pod.namespace: tdarr
       toPorts:
         - ports:
             - port: "32400"

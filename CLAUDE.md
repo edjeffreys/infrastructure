@@ -92,7 +92,7 @@ no namespace.
 | `tailscale-ingress.yaml` / `traefik-ingress.yaml` | named for the ingress path it actually uses — never bare `ingress.yaml` |
 | `<name>-secret.yaml` | named after the `OnePasswordItem`/Secret it declares — never bare `secret.yaml` |
 | `<name>-values.yaml` | Helm values. **Do not rename to `values.yaml`** — Renovate's runner-image `regexManager` and kubeconform's `-ignore-filename-pattern` both key off this suffix |
-| `<component>/` | subdirectory per **workload** once a directory holds more than one — `arr/{sonarr,radarr,…}`, `tdarr/{server,node,node-cpu}`, `plex/postgres`. Resources shared between components stay at the top level (`tdarr/cache-pvc.yaml`, mounted by both server and node) |
+| `<component>/` | subdirectory per **workload** once a directory holds more than one — `arr/{sonarr,radarr,…}`, `plex/postgres`. Resources shared between components stay at the top level (`arr/media-pvc.yaml`, mounted by sonarr, radarr and sabnzbd) |
 
 `monitoring/` is deliberately flat despite holding several files: they are all
 supplements to a *single* Helm release (`kube-prometheus-stack`), not separate
@@ -521,9 +521,6 @@ See `kubernetes/arc-systems/README.md` for the full setup and a diagnosis runboo
 |-----|-----------|-------|-------|
 | plex | plex | worker-0 only | QuickSync via passed-through iGPU (`gpu: intel`) |
 | intel-gpu-plugin | intel-gpu | worker-0 only | Advertises `gpu.intel.com/i915` |
-| tdarr-server | tdarr | standard | UI 8265, node protocol 8266, `internalNode: false` |
-| tdarr-node | tdarr | worker-0 only | Holds the second `i915` device; cache on `nfs` |
-| tdarr-node-cpu | tdarr | standard, non-GPU | No `/dev/dri` — CPU-only work only |
 | radarr | arr | pia | Postgres (`radarr-main`/`radarr-log` on `arr-postgres`) |
 | sonarr | arr | pia | Postgres (`sonarr-main`/`sonarr-log` on `arr-postgres`) |
 | sabnzbd | arr | pia | CPU limit 3000m for par2/unpack |
@@ -571,11 +568,8 @@ All workloads via Tailscale ingress. Traefik installed, internal only (+ homeass
 - **Tailscale StatefulSets**: created by the Tailscale operator, not from git. ArgoCD needed `resourceExclusions` to stop diffing them; Flux never sees them, since they are not in any Kustomization inventory.
 - **Tailscale ProxyClass**: all ingresses use `tailscale.com/proxy-class: "standard"` (not `"default"` — renamed).
 - **iGPU passthrough is exclusive**: the MS-01's single Alder Lake iGPU (`8086:46a6`, `0000:00:02.0`) is passed to `talos-worker-0` alone, so `gpu: intel` labels exactly one node and plex is pinned to it. Sharing it more widely means SR-IOV (out-of-tree DKMS on the Proxmox host, breaks on kernel bumps) — don't. The host must keep `i915` blacklisted and `softdep i915 pre: vfio-pci`, or the VM won't start.
-- **GPU devices are fully allocated**: the plugin advertises `gpu.intel.com/i915: 2` (`sharedDevNum`), and plex + tdarr-node hold one each. Anything else requesting the resource — emby, a second tdarr node — sits `Pending` until `sharedDevNum` is raised in `kubernetes/intel-gpu/daemonset.yaml`. It's an accounting limit, not a hardware one.
-- **Tdarr UI actions fail over the Tailscale Ingress (known, accepted)**: the UI is served on 8265 but the browser calls the server API on 8266 directly, and an Ingress carries one backend port — so the page renders while Start Scan / delete library / delete past jobs fail silently. `tailscale.com/expose` on the Service fixes it (all ports on one tailnet host) but is layer-4, so it drops HTTPS and changes the URL to `http://tdarr.tail5f17e.ts.net:8265`; tried and reverted. Workaround: `kubectl -n tdarr port-forward svc/tdarr-server 8265:8265 8266:8266`.
+- **GPU devices are fully allocated**: the plugin advertises `gpu.intel.com/i915: 2` (`sharedDevNum`), and plex + conform's encode Jobs hold one each. Anything else requesting the resource — emby, a second conform worker — sits `Pending` until `sharedDevNum` is raised in `kubernetes/intel-gpu/daemonset.yaml`. It's an accounting limit, not a hardware one.
 - **Tailnet Lock signs devices, not services**: swapping a Tailscale Ingress for an exposed Service (or vice versa) destroys one tailnet device and creates another, and the new one is **locked out** until signed — no connectivity, and nothing in the app logs explains it. Check `tailscale lock status` inside the `ts-<name>-0` pod in `tailscale`, then run the printed `tailscale lock sign ...` on a node holding a trusted signing key. Also: the old hostname served HTTPS, so browsers may hold HSTS for it and silently upgrade `http://` back to `https://`.
-- **Tdarr worker type is only a queue label**: "GPU worker" vs "CPU worker" controls which pool claims a job, *not* which encoder ffmpeg uses — that comes from the flow. So a flow specifying `hevc_qsv` that lands on `tdarr-node-cpu` fails outright: no `/dev/dri` there. Any video-encode step must be preceded by a `tagsWorkerType: GPU` node once both nodes exist.
-- **Tdarr cache must not go on longhorn**: the node writes a full working copy of every file it processes. On longhorn that's 2 replicas onto the one Proxmox physical disk. It uses the `nfs` class deliberately.
 - **Talos extensions need `upgrade`, not `apply-config`**: adding `siderolabs/i915` to `talconfig.yaml` changes the *installer image*. Existing nodes only pick it up via `talosctl upgrade --image factory.talos.dev/metal-installer/<id>:<ver>`. The schematic hash covers list **order**, so read it from `talhelper genurl installer` rather than recomputing — and keep `talos_worker_schematic_id` in `terraform/proxmox/talos.tf` in step, or a rebuilt node comes back without extensions.
 - **PIA node taint**: `node-type=pia:NoExecute` only — `NoExecute` prevents scheduling; `NoSchedule` redundant, don't add.
 - **PSA privileged namespaces**: `tailscale`, `monitoring`, `loki`, `longhorn-system` need `pod-security.kubernetes.io/enforce: privileged` — enforced via namespace manifests in git.

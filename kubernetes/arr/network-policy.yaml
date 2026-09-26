@@ -239,52 +239,6 @@ spec:
               protocol: TCP
 
 ---
-# Tdarr calls the Sonarr/Radarr APIs after it rewrites a file, so the arr app
-# re-reads the new size, codec and duration instead of holding stale metadata
-# from before the transcode. Kept separate from the seerr policies above
-# because Cilium ORs ingress rules across policies — a distinct policy is
-# easier to remove later than an extra fromEndpoints buried in a rule named
-# for a different consumer.
-#
-# Both tdarr pods are allowed: flow plugins run on the node, but the server
-# performs post-processing of its own, and which one makes the call depends on
-# the flow.
-apiVersion: cilium.io/v2
-kind: CiliumNetworkPolicy
-metadata:
-  name: tdarr-ingress
-  namespace: arr
-spec:
-  endpointSelector:
-    matchLabels:
-      app: sonarr
-  ingress:
-    - fromEndpoints:
-        - matchLabels:
-            k8s:io.kubernetes.pod.namespace: tdarr
-      toPorts:
-        - ports:
-            - port: "8989"
-
----
-apiVersion: cilium.io/v2
-kind: CiliumNetworkPolicy
-metadata:
-  name: tdarr-radarr-ingress
-  namespace: arr
-spec:
-  endpointSelector:
-    matchLabels:
-      app: radarr
-  ingress:
-    - fromEndpoints:
-        - matchLabels:
-            k8s:io.kubernetes.pod.namespace: tdarr
-      toPorts:
-        - ports:
-            - port: "7878"
-
----
 # Allow sonarr and radarr to reach sabnzbd
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy

@@ -146,9 +146,6 @@ spec:
             k8s:io.kubernetes.pod.namespace: emby
     - toEndpoints:
         - matchLabels:
-            k8s:io.kubernetes.pod.namespace: tdarr
-    - toEndpoints:
-        - matchLabels:
             k8s:io.kubernetes.pod.namespace: longhorn-system
     - toEndpoints:
         - matchLabels:
