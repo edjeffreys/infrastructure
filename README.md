@@ -35,8 +35,8 @@ proxmox-mini-1 (16 CPU, 64GB RAM)
 
 PIA nodes are tainted `node-type=pia:NoExecute` — only workloads with an
 explicit toleration schedule there. `talos-worker-0` additionally holds the
-passed-through Intel iGPU (`gpu: intel`), which is why Plex and the GPU Tdarr
-node are pinned to it.
+passed-through Intel iGPU (`gpu: intel`), which is why Plex and conform's
+encode Jobs are pinned to it.
 
 ## Repository structure
 
@@ -74,7 +74,6 @@ kubernetes/            — one directory per app, named after its Kustomization
   storage/               — NFS + Longhorn StorageClasses
   storj/                 — Storj node ingress
   tailscale/             — Tailscale operator, ProxyClasses, exit node Connectors
-  tdarr/                 — transcoding server + GPU and CPU nodes
   traefik/               — Traefik ingress controller + its Cilium LB IP pool
   truenas/               — TrueNAS UI ingress
 images/claude-agent/     — container image built by GitHub Actions via BuildKit
@@ -112,7 +111,6 @@ All private, over the tailnet:
 | Goldilocks | `goldilocks.tail5f17e.ts.net` |
 | Plex | `plex.tail5f17e.ts.net` |
 | Emby | `emby.tail5f17e.ts.net` |
-| Tdarr | `tdarr.tail5f17e.ts.net` |
 | Radarr / Sonarr | `radarr.` / `sonarr.tail5f17e.ts.net` |
 | SABnzbd | `sabnzbd.tail5f17e.ts.net` |
 | Seerr | `seerr.tail5f17e.ts.net` |

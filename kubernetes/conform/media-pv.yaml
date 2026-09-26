@@ -1,5 +1,5 @@
 ---
-# Fourth static PV against the same export as arr, plex and tdarr: a PV binds to
+# Third static PV against the same export as arr and plex: a PV binds to
 # exactly one claim, so each namespace needs its own.
 apiVersion: v1
 kind: PersistentVolume

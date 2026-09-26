@@ -76,7 +76,7 @@ execution:
   # Not /config: that holds this file, and a ConfigMap mount is read-only.
   stateDir: /state
   workers: 1
-  # Matches arr, plex and tdarr on the shared export.
+  # Matches arr and plex on the shared export.
   owner:
     uid: 3000
     gid: 3000

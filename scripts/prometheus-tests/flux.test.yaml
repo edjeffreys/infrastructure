@@ -27,7 +27,7 @@ tests:
     input_series:
       - series: 'up{namespace="flux-system", pod="source-controller-abc"}'
         values: '1x30'
-      - series: 'gotk_resource_info{customresource_kind="Kustomization", exported_namespace="flux-system", name="tdarr", ready="True", suspended="false", revision="sha1:aaa"}'
+      - series: 'gotk_resource_info{customresource_kind="Kustomization", exported_namespace="flux-system", name="plex", ready="True", suspended="false", revision="sha1:aaa"}'
         values: '1x30'
     alert_rule_test:
       - eval_time: 30m
@@ -42,7 +42,7 @@ tests:
   - interval: 1m
     name: controllers gone, resources remain
     input_series:
-      - series: 'gotk_resource_info{customresource_kind="Kustomization", exported_namespace="flux-system", name="tdarr", ready="True", suspended="false"}'
+      - series: 'gotk_resource_info{customresource_kind="Kustomization", exported_namespace="flux-system", name="plex", ready="True", suspended="false"}'
         values: '1x30'
     alert_rule_test:
       - eval_time: 20m
