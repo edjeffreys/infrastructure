@@ -57,7 +57,7 @@ template:
         # ImagePullBackOff. Check with:
         #   TOKEN=$(curl -s "https://ghcr.io/token?scope=repository:actions/actions-runner:pull&service=ghcr.io" | jq -r .token)
         #   curl -s -H "Authorization: Bearer $TOKEN" https://ghcr.io/v2/actions/actions-runner/tags/list
-        image: ghcr.io/actions/actions-runner:2.337.0
+        image: ghcr.io/actions/actions-runner:2.338.0
         command: ["/home/runner/run.sh"]
         env:
           # Kubernetes mode otherwise makes `container:` mandatory for every
