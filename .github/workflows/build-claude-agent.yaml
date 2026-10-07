@@ -29,7 +29,7 @@ jobs:
     container:
       # Keep in step with the daemon in kubernetes/buildkit/deployment.yaml —
       # Renovate groups them so they land in one PR.
-      image: moby/buildkit:v0.33.1
+      image: moby/buildkit:v0.34.0
     steps:
       - name: Build and push
         run: |
