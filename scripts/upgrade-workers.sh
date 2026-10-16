@@ -16,7 +16,7 @@ set -e
 # Current set: i915, intel-ucode, iscsi-tools, util-linux-tools, nfs-utils,
 # qemu-guest-agent, tailscale.
 SCHEMATIC="bb2bf97151447e3e0b8e3b0726805f1050a59e4e780b366211ba71bc19c07a7c"
-IMAGE="factory.talos.dev/metal-installer/${SCHEMATIC}:v1.13.10"
+IMAGE="factory.talos.dev/metal-installer/${SCHEMATIC}:v1.13.11"
 
 # Control planes run a DIFFERENT schematic (qemu-guest-agent + tailscale only)
 # and are deliberately not in this script: they must go one at a time with an
