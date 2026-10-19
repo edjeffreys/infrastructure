@@ -1,0 +1,53 @@
+# Energy dashboard has no standing-charge field; a cost needs an energy stat to hang off.
+template:
+  - sensor:
+      - name: Electricity standing charge energy
+        unique_id: electricity_standing_charge_energy
+        unit_of_measurement: kWh
+        device_class: energy
+        state_class: total_increasing
+        state: "0"
+      - name: Gas standing charge energy
+        unique_id: gas_standing_charge_energy
+        unit_of_measurement: kWh
+        device_class: energy
+        state_class: total_increasing
+        state: "0"
+
+  # Accrues by elapsed time, so restarts and rate outages catch up rather than lose time.
+  - triggers:
+      - trigger: time_pattern
+        minutes: /5
+      - trigger: homeassistant
+        event: start
+    sensor:
+      - name: Electricity standing charge cost
+        unique_id: electricity_standing_charge_cost
+        unit_of_measurement: GBP
+        device_class: monetary
+        state_class: total
+        state: >
+          {% set rate = states('sensor.octopus_energy_electricity_current_standing_charge') | float(none) %}
+          {% set last = this.attributes.get('accrued_until') %}
+          {% set prev = this.state | float(0) %}
+          {% if rate is none or last is none %}{{ prev }}
+          {% else %}{{ (prev + rate * (now() - as_datetime(last)).total_seconds() / 86400) | round(6) }}{% endif %}
+        attributes:
+          accrued_until: >
+            {{ now().isoformat() if has_value('sensor.octopus_energy_electricity_current_standing_charge')
+               else this.attributes.get('accrued_until') }}
+      - name: Gas standing charge cost
+        unique_id: gas_standing_charge_cost
+        unit_of_measurement: GBP
+        device_class: monetary
+        state_class: total
+        state: >
+          {% set rate = states('sensor.octopus_energy_gas_current_standing_charge') | float(none) %}
+          {% set last = this.attributes.get('accrued_until') %}
+          {% set prev = this.state | float(0) %}
+          {% if rate is none or last is none %}{{ prev }}
+          {% else %}{{ (prev + rate * (now() - as_datetime(last)).total_seconds() / 86400) | round(6) }}{% endif %}
+        attributes:
+          accrued_until: >
+            {{ now().isoformat() if has_value('sensor.octopus_energy_gas_current_standing_charge')
+               else this.attributes.get('accrued_until') }}
