@@ -1,0 +1,17 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: alert-relay
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./kubernetes/alert-relay
+  prune: true
+  wait: true
+  timeout: 5m
+  dependsOn:
+    - name: homelab-ca
+    - name: nack
+  sourceRef:
+    kind: GitRepository
+    name: infrastructure

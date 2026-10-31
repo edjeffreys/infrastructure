@@ -1,8 +1,8 @@
 # nats
 
 3-node NATS cluster with JetStream, mTLS on every port. Message bus for the
-homelab: Home Assistant (via natsmqtt5), Alertmanager and the bin calendar
-feed into it in later phases.
+homelab: MQTT devices and Home Assistant via the `nats-mqtt` leaf, and
+Alertmanager via `alert-relay`; the bin calendar comes later.
 
 | Port | Listener | TLS |
 |---|---|---|
@@ -53,6 +53,18 @@ The client verifies the server against the `homelab-ca` ConfigMap and connects
 to `tls://nats.nats.svc:4222`. Most client libraries load their cert once, at
 connect time, so give the Deployment a Reloader annotation or it fails when
 cert-manager renews.
+
+## Streams
+
+Streams are declared as NACK `Stream` resources (`jetstream.nats.io/v1beta2`)
+next to the app that publishes to them — `kubernetes/alert-relay/stream.yaml`
+is the example. nats-server's config cannot declare streams; NACK
+(`kubernetes/nack/`) creates them over the API as `CN=nack.nack` in `APP`, and
+puts them back if they drift. A directory holding a `Stream` needs
+`dependsOn: nack` on its Kustomization, or the CRD may not exist yet.
+
+Set `preventDelete: true` on anything worth keeping: without it, deleting the
+resource from git deletes the stream and its messages.
 
 ## Operating
 

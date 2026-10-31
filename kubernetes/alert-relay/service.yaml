@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: alert-relay
+  namespace: alert-relay
+spec:
+  selector:
+    app: alert-relay
+  ports:
+    - name: http
+      port: 4195
+      targetPort: http

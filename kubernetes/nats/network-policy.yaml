@@ -64,6 +64,10 @@ spec:
     - fromEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: tailscale
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: nack
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: alert-relay
       toPorts:
         - ports:
             - port: "4222"
