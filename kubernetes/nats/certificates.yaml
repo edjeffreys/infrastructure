@@ -20,6 +20,8 @@ spec:
     - "*.nats-headless.nats.svc"
     - "*.nats-headless.nats.svc.cluster.local"
     - nats.tail5f17e.ts.net
+    # For `kubectl port-forward`; harmless, since nothing else reaches the hub as localhost.
+    - localhost
   # client auth too: a server dialling a route presents this same cert.
   usages:
     - server auth

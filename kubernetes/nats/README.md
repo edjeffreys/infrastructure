@@ -79,12 +79,20 @@ Talos ignores PodDisruptionBudgets on drain, so it is the only thing stopping
 a second node going down while JetStream is still re-syncing from the first —
 which, at R3, loses quorum.
 
-## From your Mac, over Tailscale
+## From your Mac
 
-The client port is on the tailnet as `nats.tail5f17e.ts.net:4222` — an L4
-passthrough Service (`tailscale-ingress.yaml`), so mTLS is still end to end and
-a device without a mapped cert gets `certificate required`. It is the only way
-onto the hub from outside the cluster; the hub is never on a LAN VIP.
+Two routes, both mTLS end to end — a client without a mapped cert gets
+`certificate required` either way. The hub is never on a LAN VIP.
+
+- **Port-forward** (works): `kubectl -n nats port-forward svc/nats 4222`, then
+  the `homelab-pf` contexts below. The server cert carries a `localhost` SAN for
+  this.
+- **Tailscale**, `nats.tail5f17e.ts.net:4222` (`tailscale-ingress.yaml`):
+  **does not work yet.** The operator's L4 proxy hands tailnet traffic to the
+  ClusterIP with an in-kernel DNAT, and Cilium's kube-proxy replacement never
+  load-balances those forwarded packets — the SYN leaves the node still
+  addressed to the ClusterIP. Connections the proxy pod opens itself work, so
+  the fix is a ProxyGroup-backed Service, which forwards in userspace.
 
 Two personal identities: `CN=ed.nats` (account `APP`) and `CN=ed-sys.nats`
 (system account). Pull them down once, and again after each renewal — they are
@@ -106,6 +114,12 @@ nats context save homelab --server tls://nats.tail5f17e.ts.net:4222 \
   --tlsca ~/.config/nats/homelab/ca.crt \
   --tlscert ~/.config/nats/homelab/ed-nats.crt --tlskey ~/.config/nats/homelab/ed-nats.key --select
 nats context save homelab-sys --server tls://nats.tail5f17e.ts.net:4222 \
+  --tlsca ~/.config/nats/homelab/ca.crt \
+  --tlscert ~/.config/nats/homelab/ed-sys-nats.crt --tlskey ~/.config/nats/homelab/ed-sys-nats.key
+nats context save homelab-pf --server tls://localhost:4222 \
+  --tlsca ~/.config/nats/homelab/ca.crt \
+  --tlscert ~/.config/nats/homelab/ed-nats.crt --tlskey ~/.config/nats/homelab/ed-nats.key
+nats context save homelab-pf-sys --server tls://localhost:4222 \
   --tlsca ~/.config/nats/homelab/ca.crt \
   --tlscert ~/.config/nats/homelab/ed-sys-nats.crt --tlskey ~/.config/nats/homelab/ed-sys-nats.key
 ```
