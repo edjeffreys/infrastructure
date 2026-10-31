@@ -1,7 +1,7 @@
 FROM node:26-bookworm-slim
 
 # renovate: datasource=github-releases depName=kubernetes/kubernetes
-ARG KUBECTL_VERSION=v1.36.1
+ARG KUBECTL_VERSION=v1.36.6
 # renovate: datasource=npm depName=@anthropic-ai/claude-code
 ARG CLAUDE_CODE_VERSION=2.1.237
 # renovate: datasource=github-releases depName=cli/cli extractVersion=^v(?<version>.+)$
