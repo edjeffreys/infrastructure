@@ -1,11 +1,14 @@
 service:
   type: LoadBalancer
-  ipFamilyPolicy: PreferDualStack
-  ipFamilies:
-    - IPv4
-    - IPv6
+  annotations:
+    # spec.loadBalancerIP holds one address, so a dual-stack pin goes here.
+    lbipam.cilium.io/ips: "10.0.0.210,2a0e:cb01:ca:fe00::210"
   spec:
-    loadBalancerIP: "10.0.0.210"
+    # Must be under `spec`: the chart silently ignores them one level up.
+    ipFamilyPolicy: PreferDualStack
+    ipFamilies:
+      - IPv4
+      - IPv6
     # Preserves the client source IP. Under `Cluster` every request reaches
     # backends SNAT'd to the traefik pod IP, so Plex saw 10.52.x and treated
     # LAN clients as WAN, capping their stream bitrate.
