@@ -70,8 +70,9 @@ config:
             password: << $MQTT_HOMEASSISTANT_PASSWORD >>
             allowed_connection_types: ["MQTT"]
             permissions:
-              publish: &ha ["shellies.>", "glow.>", "homeassistant.>"]
-              subscribe: *ha
+              publish: ["shellies.>", "glow.>", "homeassistant.>"]
+              # HA subscribes to every integration's discovery topic; the hub's leaf user still bounds what reaches it.
+              subscribe: [">"]
       SYS:
         users:
           - user: "CN=nats-box-sys.nats-mqtt"
