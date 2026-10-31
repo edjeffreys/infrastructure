@@ -19,6 +19,7 @@ spec:
     - "*.nats-headless.nats"
     - "*.nats-headless.nats.svc"
     - "*.nats-headless.nats.svc.cluster.local"
+    - nats.tail5f17e.ts.net
   # client auth too: a server dialling a route presents this same cert.
   usages:
     - server auth
@@ -57,5 +58,40 @@ spec:
     kind: ClusterIssuer
     name: homelab-ca
   commonName: nats-box-sys.nats
+  usages:
+    - client auth
+
+---
+# Revoke by removing the user from nats-values.yaml; the cert stays valid until expiry.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: ed
+  namespace: nats
+spec:
+  secretName: ed-nats
+  duration: 2160h
+  renewBefore: 720h
+  issuerRef:
+    kind: ClusterIssuer
+    name: homelab-ca
+  commonName: ed.nats
+  usages:
+    - client auth
+
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: ed-sys
+  namespace: nats
+spec:
+  secretName: ed-sys-nats
+  duration: 2160h
+  renewBefore: 720h
+  issuerRef:
+    kind: ClusterIssuer
+    name: homelab-ca
+  commonName: ed-sys.nats
   usages:
     - client auth

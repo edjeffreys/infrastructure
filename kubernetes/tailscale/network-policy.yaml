@@ -137,6 +137,14 @@ spec:
             k8s:io.kubernetes.pod.namespace: goldilocks
     - toEndpoints:
         - matchLabels:
+            k8s:io.kubernetes.pod.namespace: nats
+            k8s:app.kubernetes.io/component: nats
+      toPorts:
+        - ports:
+            - port: "4222"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
             k8s:io.kubernetes.pod.namespace: paperless
     - toEndpoints:
         - matchLabels:
