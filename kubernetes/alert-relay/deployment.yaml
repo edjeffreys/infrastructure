@@ -31,7 +31,7 @@ spec:
       containers:
         - name: connect
           image: redpandadata/connect:4.115.1@sha256:d9b5388444c4c4d79a5867a8be534d0f6de2be1e54cee746b79e282fb4ff2dbb
-          args: [run, /etc/connect/connect.yaml]
+          args: [run, --disable-telemetry, /etc/connect/connect.yaml]
           ports:
             - name: http
               containerPort: 4195
