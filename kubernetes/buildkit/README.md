@@ -35,15 +35,21 @@ Two things fall out of the split that are worth knowing:
 
 ## Cache
 
-The `buildkit-cache` PVC (`longhorn`, 10Gi) is mounted at
+The `buildkit-cache-single` PVC (`longhorn-single`, 10Gi) is mounted at
 `/home/user/.local/share/buildkit`. Kaniko had no cache at all, so every push
 re-downloaded the whole `claude-agent` base layer, `apt` set and global `npm`
 install; those are now reused between builds.
 
 No GC configuration is needed. BuildKit's default policy sizes itself from the
 filesystem it finds, and the PVC is a dedicated one, so the PVC's size is the
-cache bound. Raising it raises the cache — bearing in mind Longhorn keeps two
-replicas and all worker VMs sit on the one Proxmox physical disk.
+cache bound. Raising it raises the cache — bearing in mind all worker VMs sit
+on the one Proxmox physical disk.
+
+It is single-replica because everything in it can be rebuilt: losing the
+replica's node costs one cold build, while a second replica doubled every
+cache write onto the same disk. Storage class is immutable on a bound PVC,
+which is why the claim was renamed from `buildkit-cache` when it moved off
+`longhorn` — Flux prunes the old one.
 
 ## The gRPC endpoint is unauthenticated
 

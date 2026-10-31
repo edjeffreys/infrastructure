@@ -68,4 +68,4 @@ spec:
       volumes:
         - name: cache
           persistentVolumeClaim:
-            claimName: buildkit-cache
+            claimName: buildkit-cache-single
