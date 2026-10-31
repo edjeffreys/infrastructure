@@ -1,8 +1,9 @@
 # dns-sd
 
 CoreDNS on VIP `10.0.0.213`, serving the unicast DNS-SD records that let
-iPhones discover LAN services without mDNS. Today that is one service: the
-`Selphy` print queue in `kubernetes/cups/`.
+iPhones discover LAN services without mDNS. Today that is two printers: the
+`Selphy` print queue in `kubernetes/cups/`, and the Brother MFC-L3740CDW at
+`10.100.0.44`, advertised directly with no print server in front of it.
 
 ## How iOS finds it
 
@@ -31,7 +32,15 @@ names here. Under **Settings → Policy Table → DNS**:
 service needs a record here and nothing in UniFi.
 
 The A record lives in UniFi, not in the zone file, because UniFi would never
-forward `cups.lan.skaal.lan` here.
+forward `cups.lan.skaal.lan` here. The Brother's SRV target,
+`printer.iot.skaal.lan`, needs no entry: UniFi already resolves it from the
+printer's DHCP hostname, so renaming the printer breaks it.
+
+With these records, UniFi's mDNS proxy has printer services switched off, so
+the printers' own adverts never reach the phones. A printer advertised here
+is copied from the printer's `get-printer-attributes` response (`ipptool -tv
+ipp://<ip>/ipp/print get-printer-attributes.test`): iOS silently ignores one
+whose `URF=` it cannot use.
 
 ## Zone file
 

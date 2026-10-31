@@ -1,13 +1,18 @@
 $ORIGIN lan.skaal.lan.
 $TTL 300
-@                          IN SOA dns-sd.lan.skaal.lan. hostmaster.lan.skaal.lan. 1 3600 600 86400 300
+@                          IN SOA dns-sd.lan.skaal.lan. hostmaster.lan.skaal.lan. 2 3600 600 86400 300
 @                          IN NS  dns-sd.lan.skaal.lan.
 
 b._dns-sd._udp             IN PTR @
 lb._dns-sd._udp            IN PTR @
 
 _ipp._tcp                  IN PTR Selphy._ipp._tcp
+_ipp._tcp                  IN PTR Brother._ipp._tcp
 _universal._sub._ipp._tcp  IN PTR Selphy._ipp._tcp
+_universal._sub._ipp._tcp  IN PTR Brother._ipp._tcp
 
 Selphy._ipp._tcp           IN SRV 0 0 631 cups.lan.skaal.lan.
 Selphy._ipp._tcp           IN TXT "txtvers=1" "qtotal=1" "rp=printers/Selphy" "ty=Canon SELPHY CP1500" "product=(SELPHY CP1500)" "pdl=application/pdf,image/jpeg,image/urf,image/pwg-raster" "URF=V1.4,CP1,W8,PQ3-4,SRGB24,RS300,FN3" "Color=T" "Duplex=F" "kind=photo"
+
+Brother._ipp._tcp          IN SRV 0 0 631 printer.iot.skaal.lan.
+Brother._ipp._tcp          IN TXT "txtvers=1" "qtotal=1" "rp=ipp/print" "ty=Brother MFC-L3740CDW series" "product=(Brother MFC-L3740CDW series)" "pdl=application/octet-stream,image/urf,image/jpeg,image/pwg-raster,application/pdf" "URF=SRGB24,W8,CP1,IS4-1,MT1-3-4-5-8-11,OB10,PQ4,RS600,V1.5,DM1" "Color=T" "Duplex=T" "kind=document,envelope,label,postcard" "UUID=e3248000-80ce-11db-8000-94ddf8136868"
