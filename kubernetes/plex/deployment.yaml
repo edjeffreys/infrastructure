@@ -29,7 +29,7 @@ spec:
           # both open). Reproduced on BOTH published image variants with a
           # working shim and correctly migrated data — 6,059 committed
           # transactions against Postgres before it died. Not a
-          # configuration problem at our end. See scripts/plex-postgres/.
+          # configuration problem at our end.
           image: plexinc/pms-docker:1.43.3.10861-07dfddaeb@sha256:5bc1d13f48da6366f46aaf2a3ce1a6292897eadc1f8efcbbd7321d30e94f2ed4
           env:
             - name: PLEX_UID

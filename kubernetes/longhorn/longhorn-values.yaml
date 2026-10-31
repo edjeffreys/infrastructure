@@ -43,6 +43,9 @@ defaultSettings:
   # snapshots already marked removed.
   removeSnapshotsDuringFilesystemTrim: true
 
+defaultBackupStore:
+  backupTarget: nfs://10.60.0.233:/mnt/main0/longhorn-backups
+
 longhornManager:
   tolerations:
     - key: node-type

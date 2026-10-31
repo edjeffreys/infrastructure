@@ -90,9 +90,6 @@ spec:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: arr
             cnpg.io/podRole: instance
-        - matchLabels:
-            k8s:io.kubernetes.pod.namespace: plex
-            cnpg.io/podRole: instance
       toPorts:
         - ports:
             - port: "5432"

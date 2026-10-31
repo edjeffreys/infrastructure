@@ -1,0 +1,17 @@
+---
+# Volumes opt in through PVC labels; see README.md for which and why.
+apiVersion: longhorn.io/v1beta2
+kind: RecurringJob
+metadata:
+  name: backup-daily
+  namespace: longhorn-system
+spec:
+  name: backup-daily
+  # UTC: after the 04:00 trim, clear of the London media restarts year-round.
+  cron: "30 4 * * *"
+  task: backup
+  groups:
+    - backup
+  concurrency: 1
+  retain: 14
+  labels: {}

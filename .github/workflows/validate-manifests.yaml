@@ -21,7 +21,7 @@ env:
   # nothing at all — the checks sit at "Expected" and the PR never becomes
   # mergeable. Triggering always and skipping the jobs reports them as skipped,
   # which branch protection accepts as passing.
-  MANIFEST_PATHS: '^(kubernetes/|flux/|talos/manifests/|talos/talconfig\.yaml$|scripts/plex-postgres/|scripts/check-flux-refs\.py$|scripts/check-cilium-k8s-compat\.py$|\.yamllint$|\.github/workflows/validate-manifests\.yaml$)'
+  MANIFEST_PATHS: '^(kubernetes/|flux/|talos/manifests/|talos/talconfig\.yaml$|scripts/check-flux-refs\.py$|scripts/check-cilium-k8s-compat\.py$|\.yamllint$|\.github/workflows/validate-manifests\.yaml$)'
 
 # The arc-runners scale set is minRunners 0 / maxRunners 4, so a stacked push
 # should not sit waiting on a cold-started runner that is already obsolete.
@@ -173,7 +173,7 @@ jobs:
             -schema-location default \
             -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
             -ignore-filename-pattern '.*-values\.yaml' \
-            kubernetes flux scripts/plex-postgres
+            kubernetes flux
 
       - name: Install Flux CLI
         run: |
