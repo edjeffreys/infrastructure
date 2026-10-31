@@ -1,0 +1,41 @@
+# The only thing in either NATS tier reachable from the LAN. The hub is never on a VIP.
+apiVersion: v1
+kind: Service
+metadata:
+  name: nats-mqtt-lb
+  namespace: nats-mqtt
+  labels:
+    app.kubernetes.io/name: nats-mqtt-lb
+  annotations:
+    lbipam.cilium.io/ips: "10.0.0.211"
+spec:
+  type: LoadBalancer
+  # The pool has a v6 block too; this must not take an address from it.
+  ipFamilyPolicy: SingleStack
+  ipFamilies: [IPv4]
+  selector:
+    app.kubernetes.io/instance: nats-mqtt
+    app.kubernetes.io/component: nats
+  ports:
+    - name: mqtt
+      port: 1883
+      targetPort: mqtt
+      protocol: TCP
+
+---
+# Separate from Traefik's policy so neither change can take the other's VIP down.
+apiVersion: cilium.io/v2alpha1
+kind: CiliumL2AnnouncementPolicy
+metadata:
+  name: nats-mqtt
+spec:
+  nodeSelector:
+    matchLabels:
+      node-role.kubernetes.io/control-plane: ""
+  serviceSelector:
+    matchLabels:
+      app.kubernetes.io/name: nats-mqtt-lb
+  interfaces:
+    - ens18
+  externalIPs: false
+  loadBalancerIPs: true

@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: nats-mqtt
+resources:
+  - certificates.yaml
+  - mqtt-users-secret.yaml
+  - loadbalancer.yaml
+  - network-policy.yaml
+
+configMapGenerator:
+  - name: nats-mqtt-values
+    files:
+      - values.yaml=nats-mqtt-values.yaml
+    options:
+      disableNameSuffixHash: true
+      labels:
+        reconcile.fluxcd.io/watch: Enabled

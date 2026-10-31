@@ -59,13 +59,13 @@ wait_healthy() {
     # Full /healthz, not the readiness probe's js-server-only: it also waits for
     # streams to catch up, so the next node cannot take out JetStream quorum.
     nats=0
-    for p in nats-0 nats-1 nats-2; do
-      kubectl -n nats exec "$p" -c nats -- wget -qO- http://localhost:8222/healthz >/dev/null 2>&1 \
+    for p in nats/nats-0 nats/nats-1 nats/nats-2 nats-mqtt/nats-mqtt-0 nats-mqtt/nats-mqtt-1 nats-mqtt/nats-mqtt-2; do
+      kubectl -n "${p%%/*}" exec "${p#*/}" -c nats -- wget -qO- http://localhost:8222/healthz >/dev/null 2>&1 \
         && nats=$((nats + 1))
     done
-    printf '    nodes_notready=%s longhorn_degraded=%s cnpg_ready=%s/2 nats_healthy=%s/3\n' \
+    printf '    nodes_notready=%s longhorn_degraded=%s cnpg_ready=%s/2 nats_healthy=%s/6\n' \
            "$notready" "$degraded" "${cnpg:-?}" "$nats"
-    if [ "$notready" = "0" ] && [ "$degraded" = "0" ] && [ "${cnpg:-0}" = "2" ] && [ "$nats" = "3" ]; then
+    if [ "$notready" = "0" ] && [ "$degraded" = "0" ] && [ "${cnpg:-0}" = "2" ] && [ "$nats" = "6" ]; then
       echo "    cluster healthy"
       return 0
     fi

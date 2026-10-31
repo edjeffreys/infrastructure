@@ -8,6 +8,7 @@ feed into it in later phases.
 |---|---|---|
 | 4222 | clients | `verify_and_map` — the client cert *is* the identity |
 | 6222 | cluster routes | `verify` against `homelab-ca` |
+| 7422 | leafnodes | `verify_and_map`; only `nats-mqtt` may connect (policy) |
 | 8222 | monitoring | plain HTTP, pod-local only (probes, exporter) |
 | 7777 | prometheus-nats-exporter | scraped via PodMonitor |
 
