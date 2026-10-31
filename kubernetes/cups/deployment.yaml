@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cups
+  namespace: cups
+spec:
+  replicas: 1
+  # The spool lives in the pod; two queues would split jobs between them.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: cups
+  template:
+    metadata:
+      labels:
+        app: cups
+    spec:
+      nodeSelector:
+        node-type: standard
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: cupsd
+          image: ghcr.io/edjeffreys/cups:latest
+          ports:
+            - name: ipp
+              containerPort: 631
+          readinessProbe:
+            tcpSocket:
+              port: ipp
+          livenessProbe:
+            tcpSocket:
+              port: ipp
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              memory: 512Mi
+          # cupsd starts as root and drops to lp for filters and backends.
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+              add: [CHOWN, DAC_OVERRIDE, FOWNER, KILL, NET_BIND_SERVICE, SETGID, SETUID]
+          volumeMounts:
+            - {name: config, mountPath: /config, readOnly: true}
+            - {name: etc, mountPath: /etc/cups}
+            - {name: spool, mountPath: /var/spool/cups}
+            - {name: cache, mountPath: /var/cache/cups}
+            - {name: run, mountPath: /run/cups}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: config
+          configMap:
+            name: cups-config
+        - {name: etc, emptyDir: {}}
+        - {name: spool, emptyDir: {}}
+        - {name: cache, emptyDir: {}}
+        - {name: run, emptyDir: {}}
+        - {name: tmp, emptyDir: {}}

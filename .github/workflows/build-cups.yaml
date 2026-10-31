@@ -1,0 +1,59 @@
+name: Build cups image
+
+# The job container is only the buildctl client; the build runs on the
+# in-cluster buildkitd, which needs a seccomp exemption arc-runners must not
+# have (kubernetes/buildkit/README.md).
+# No checkout step: buildkit clones its --opt context git URL itself.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - images/cups/**
+      - .github/workflows/build-cups.yaml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+# Don't cancel a build for a newer push - it should still finish, not leave
+# :latest built from neither commit.
+concurrency:
+  group: build-cups-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: arc-runners
+    container:
+      # Keep in step with the daemon in kubernetes/buildkit/deployment.yaml —
+      # Renovate groups them so they land in one PR.
+      image: moby/buildkit:v0.34.1
+    steps:
+      - name: Build and push
+        run: |
+          set -eu
+
+          # buildctl forwards this to the daemon over the build session, so the
+          # token never reaches buildkitd's cache. DOCKER_CONFIG: HOME may be unset.
+          export DOCKER_CONFIG=/tmp/.docker
+          AUTH=$(printf '%s:%s' "${{ github.actor }}" "${{ secrets.GITHUB_TOKEN }}" | base64 | tr -d '\n')
+          mkdir -p "${DOCKER_CONFIG}"
+          cat <<EOF > "${DOCKER_CONFIG}/config.json"
+          {"auths":{"ghcr.io":{"auth":"${AUTH}"}}}
+          EOF
+
+          SHA_TAG="sha-$(echo "${GITHUB_SHA}" | head -c7)"
+          IMAGE=ghcr.io/edjeffreys/cups
+
+          # No credentials on the context URL: the repo is public. A private
+          # repo would need the token passed as a buildkit secret instead.
+          buildctl \
+            --addr tcp://buildkitd.buildkit:1234 \
+            build \
+            --frontend dockerfile.v0 \
+            --opt "context=https://github.com/${GITHUB_REPOSITORY}.git#${GITHUB_SHA}:images/cups" \
+            --opt filename=Dockerfile \
+            --output "type=image,\"name=${IMAGE}:latest,${IMAGE}:${SHA_TAG}\",push=true" \
+            --progress plain

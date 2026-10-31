@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: cups
+resources:
+  - namespace.yaml
+  - deployment.yaml
+  - loadbalancer.yaml
+  - network-policy.yaml
+
+# Hashed name, so a config change rolls the Deployment.
+configMapGenerator:
+  - name: cups-config
+    files:
+      - cupsd.conf
+      - cups-files.conf
+      - printers.conf
+      - Selphy.ppd
