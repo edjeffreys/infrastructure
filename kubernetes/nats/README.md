@@ -73,10 +73,48 @@ Health, including whether every stream has caught up:
 kubectl -n nats exec nats-0 -c nats -- wget -qO- http://localhost:8222/healthz
 ```
 
-`scripts/upgrade-workers.sh` gates on that for all three pods between nodes.
+`scripts/upgrade-workers.sh` gates on that for all six NATS pods — these three
+and `nats-mqtt`'s — between nodes.
 Talos ignores PodDisruptionBudgets on drain, so it is the only thing stopping
 a second node going down while JetStream is still re-syncing from the first —
 which, at R3, loses quorum.
+
+## From your Mac, over Tailscale
+
+The client port is on the tailnet as `nats.tail5f17e.ts.net:4222` — an L4
+passthrough Service (`tailscale-ingress.yaml`), so mTLS is still end to end and
+a device without a mapped cert gets `certificate required`. It is the only way
+onto the hub from outside the cluster; the hub is never on a LAN VIP.
+
+Two personal identities: `CN=ed.nats` (account `APP`) and `CN=ed-sys.nats`
+(system account). Pull them down once, and again after each renewal — they are
+90-day certs that cert-manager renews at 60 days, so the copies on the Mac go
+stale:
+
+```bash
+D=~/.config/nats/homelab; mkdir -p "$D"; chmod 700 "$D"
+kubectl -n nats get configmap homelab-ca -o jsonpath='{.data.ca\.crt}' > "$D/ca.crt"
+for s in ed-nats ed-sys-nats; do
+  kubectl -n nats get secret "$s" -o jsonpath='{.data.tls\.crt}' | base64 -d > "$D/$s.crt"
+  kubectl -n nats get secret "$s" -o jsonpath='{.data.tls\.key}' | base64 -d > "$D/$s.key"
+done
+chmod 600 "$D"/*.key
+```
+
+```bash
+nats context save homelab --server tls://nats.tail5f17e.ts.net:4222 \
+  --tlsca ~/.config/nats/homelab/ca.crt \
+  --tlscert ~/.config/nats/homelab/ed-nats.crt --tlskey ~/.config/nats/homelab/ed-nats.key --select
+nats context save homelab-sys --server tls://nats.tail5f17e.ts.net:4222 \
+  --tlsca ~/.config/nats/homelab/ca.crt \
+  --tlscert ~/.config/nats/homelab/ed-sys-nats.crt --tlskey ~/.config/nats/homelab/ed-sys-nats.key
+```
+
+Then `nats sub 'shellies.>'`, or `nats --context homelab-sys server report jetstream`.
+
+The tailnet device `nats` is subject to Tailnet Lock: on first deploy it has no
+connectivity until signed (`tailscale lock status` in the `ts-nats-tailscale-…`
+pod in `tailscale`, then the printed `tailscale lock sign …` on a trusted node).
 
 ## Gotchas
 

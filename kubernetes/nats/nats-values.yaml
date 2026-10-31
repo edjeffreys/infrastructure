@@ -45,6 +45,7 @@ config:
         jetstream: enabled
         users:
           - user: "CN=nats-box.nats"
+          - user: "CN=ed.nats"
           # The LAN-facing MQTT tier: everything it can reach on the hub is listed here.
           - user: "CN=nats-mqtt-leaf.nats-mqtt"
             allowed_connection_types: ["LEAFNODE"]
@@ -54,6 +55,7 @@ config:
       SYS:
         users:
           - user: "CN=nats-box-sys.nats"
+          - user: "CN=ed-sys.nats"
 
 container:
   merge:

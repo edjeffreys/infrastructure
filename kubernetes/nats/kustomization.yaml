@@ -4,6 +4,7 @@ namespace: nats
 resources:
   - certificates.yaml
   - network-policy.yaml
+  - tailscale-ingress.yaml
 
 configMapGenerator:
   - name: nats-values

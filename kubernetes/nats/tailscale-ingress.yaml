@@ -1,0 +1,21 @@
+# L4 passthrough, so NATS still checks the client cert. Tailnet only — the hub
+# is never on a LAN VIP.
+apiVersion: v1
+kind: Service
+metadata:
+  name: nats-tailscale
+  namespace: nats
+  annotations:
+    tailscale.com/hostname: nats
+    tailscale.com/proxy-class: standard
+spec:
+  type: LoadBalancer
+  loadBalancerClass: tailscale
+  selector:
+    app.kubernetes.io/instance: nats
+    app.kubernetes.io/component: nats
+  ports:
+    - name: nats
+      port: 4222
+      targetPort: nats
+      protocol: TCP
