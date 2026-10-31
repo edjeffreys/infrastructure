@@ -541,7 +541,7 @@ See `kubernetes/arc-systems/README.md` for the full setup and a diagnosis runboo
 | actual-budget | actual-budget | standard | SQLite only — see "Not migrated" above |
 | paperless | paperless | standard | Helm chart, Tailscale ingress |
 | nats | nats | standard | 3-node JetStream, mTLS (`verify_and_map`); adding a client is three changes — see `kubernetes/nats/README.md` |
-| nats-mqtt | nats-mqtt | standard | 3-node leaf of `nats`, MQTT 3.1.1 on dual-stack VIP `10.0.0.211`/`::211` — TLS `mqtt.skaal.dev:8883` (Let's Encrypt), plaintext 1883 — the only NATS ports on the LAN; see `kubernetes/nats-mqtt/README.md` |
+| nats-mqtt | nats-mqtt | standard | 3-node leaf of `nats`, MQTT 3.1.1 on dual-stack VIP `10.0.0.211`/`::211` — TLS-only `mqtt.skaal.dev:8883` (Let's Encrypt) — the only NATS port on the LAN. HA 2027.1.0 drops MQTT 3.1.1, see the README's MQTT 5 deadline; see `kubernetes/nats-mqtt/README.md` |
 | homeassistant | homeassistant | external | ExternalName proxy → `homeassistant.mng.skaal.lan:8123`, Traefik ingress only |
 
 All workloads via Tailscale ingress. Traefik installed, internal only (+ homeassistant proxy via `home.skaal.dev`).

@@ -16,11 +16,8 @@ spec:
   selector:
     app.kubernetes.io/instance: nats-mqtt
     app.kubernetes.io/component: nats
+  # TLS only. Plaintext 1883 stays inside the pod, as ghostunnel's backend.
   ports:
-    - name: mqtt
-      port: 1883
-      targetPort: mqtt
-      protocol: TCP
     - name: mqtts
       port: 8883
       targetPort: mqtts

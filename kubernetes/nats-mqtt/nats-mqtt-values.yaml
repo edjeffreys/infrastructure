@@ -123,7 +123,7 @@ podTemplate:
     - op: add
       path: /spec/volumes/-
       value: {name: mqtt-public, secret: {secretName: mqtt-public}}
-    # TLS beside 1883, not instead: nats-server has one MQTT listener and the Glow may lack TLS.
+    # Kept until mqtt-nats-broker (native TLS) replaces this listener; see README "MQTT 5 deadline".
     - op: add
       path: /spec/containers/-
       value:

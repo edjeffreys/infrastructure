@@ -82,8 +82,6 @@ spec:
         - host
       toPorts:
         - ports:
-            - port: "1883"
-              protocol: TCP
             - port: "8883"
               protocol: TCP
 
