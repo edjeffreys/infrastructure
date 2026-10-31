@@ -28,39 +28,46 @@ advertises, regenerate it the same way rather than editing sizes by hand.
 ## Borderless trim
 
 Borderless, the Selphy enlarges the page past the paper's edges and trims a
-fixed amount off each one. Measured with a chart of nested 1 mm boxes, and
-consistent from sheet to sheet:
+fixed amount off each one. Measured with a chart of nested 1 mm boxes:
 
-| Edge, landscape print held upright | Trim | Edge in the page CUPS sends |
+| Landscape print, text upright | Trim | `selphy-bleed.conf` key |
 |---|---|---|
-| left | 4 mm | top |
-| right | 2.5 mm | bottom |
-| top | 2.25 mm | right |
-| bottom | 3.75 mm | left |
+| left end (red tab) | 4 mm | `top` |
+| right end | 4.5 mm | `bottom` |
+| top edge | 3.2 mm | `right` |
+| bottom edge | 3.5 mm | `left` |
 
-The third column is the frame `selphy-bleed.conf` uses. pdftopdf turns a
-landscape page 90° clockwise onto the portrait paper, so the photo's frame
-and the printer's differ; the values are in the printer's.
+**The config's names are not the print's.** pdftopdf turns a landscape page
+90° clockwise onto the portrait paper, and the config uses the portrait
+page's edges: the print's left and right *ends* are `top` and `bottom`, and
+its top and bottom *edges* are `right` and `left`. Getting this backwards
+cost two rounds of tuning the wrong pair.
 
-The right-hand trim was first read as 0.5 mm. A chart printed with the filter
-active then still lost 2 mm on that edge, so it is 2.5 mm; the other three
-came out exact. Checking the filter's own output is the more reliable
-measurement, because the tear-off tab makes the raw edge hard to read.
-
-The top and bottom were first set at 3 mm each. A chart print then kept its
-0 mm line on the top edge but lost about 1.5 mm on the bottom, so 0.75 mm
-moved from one to the other: same total, so the same scale, with the
-unavoidable cover-fit loss split evenly between the photo's two long edges.
+The values are what the printer actually trims, worked back from a chart
+printed *through* the filter: actual trim = configured trim + chart lost on
+that edge − the cover-fit crop on that axis. Measuring through the filter is
+more reliable than measuring raw prints, and lines visible on a torn-off tab
+are chart that was lost, not the stretched margin. Photograph the card with
+the red tab end at the top, i.e. in the config's frame.
 
 `images/cups/selphy-bleed` (`application/vnd.cups-pdf` → `image/pwg-raster`,
 after pdftopdf) scales each postcard page to cover just the part of the card
 that survives, positions it to match the uneven trim, and fills the trimmed
 margin by stretching the edge pixels outwards — so the printer cuts off
 stretched edge rather than photo, and a sheet that lands a fraction off shows
-more stretched edge rather than white. The cost is about 0.8 mm off the
-photo's top and bottom (landscape), where the surviving window's 1.50 ratio
-is wider than the page's 1.48. Card and L-size pages pass through unchanged;
+more stretched edge rather than white. The cost is about 0.5 mm off the
+photo's top and bottom edges (landscape), where the surviving window's 1.496
+ratio is fractionally wider than the page's 1.48; the two ends lose nothing. Card and L-size pages pass through unchanged;
 only the postcard was measured.
+
+`selphy-bleed.conf` also sets two tone adjustments, applied to every page:
+
+- `brightness` — a gamma lift (`1.0` is off). `1.05` raises mid-grey by about
+  3% without clipping highlights, which a multiply would on a dye-sub print.
+- `vibrance` — extra saturation for muted colours, tapering to none for
+  fully saturated ones (`0` is off). `0.15` gives low-saturation colours up to
+  15% more, so skin and dull colours gain some life without strong reds
+  going garish.
 
 The JPEG passthrough the generated PPD had is gone, so a JPEG sent from a Mac
 is compensated too. `image/urf` still passes straight to the printer — AirPrint
@@ -129,7 +136,7 @@ so it is only cleared by a pod restart).
 
 `images/cups/` builds upstream CUPS from the OpenPrinting release tarball
 (`CUPS_VERSION`, tracked by Renovate) over Debian's `cups-filters`,
-Ghostscript and Pillow (for `selphy-bleed`), with the patches in
+Ghostscript, Pillow and NumPy (for `selphy-bleed`), with the patches in
 `images/cups/patches/` applied to the source. Debian only ships CUPS 2.4.10 with backported fixes; its libcups
 is overwritten by upstream's, which is ABI-compatible within 2.4. Built by
 `.github/workflows/build-cups.yaml` on the in-cluster buildkitd and pushed to
