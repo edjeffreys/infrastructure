@@ -1,0 +1,20 @@
+# No egress, not even allow-dns: it is authoritative and forwards nothing.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns-ingress
+  namespace: dns-sd
+spec:
+  endpointSelector:
+    matchLabels:
+      app: dns-sd
+  ingress:
+    - fromEntities:
+        - remote-node
+        - host
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP

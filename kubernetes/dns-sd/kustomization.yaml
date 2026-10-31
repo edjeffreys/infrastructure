@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: dns-sd
+resources:
+  - namespace.yaml
+  - deployment.yaml
+  - loadbalancer.yaml
+  - network-policy.yaml
+
+configMapGenerator:
+  - name: dns-sd
+    files:
+      - Corefile
+      - lan.skaal.lan.db
