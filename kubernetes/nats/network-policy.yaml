@@ -1,0 +1,106 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: nats
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+
+---
+# Route TLS accepts any homelab-ca client cert; only this stops one joining as a route.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-cluster-routes
+  namespace: nats
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: nats
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/component: nats
+      toPorts:
+        - ports:
+            - port: "6222"
+              protocol: TCP
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/component: nats
+      toPorts:
+        - ports:
+            - port: "6222"
+              protocol: TCP
+
+---
+# Add a namespace here for each new client workload.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-client-ingress
+  namespace: nats
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: nats
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: nats
+            app.kubernetes.io/component: nats-box
+      toPorts:
+        - ports:
+            - port: "4222"
+              protocol: TCP
+
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-nats-box-egress
+  namespace: nats
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: nats-box
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/component: nats
+      toPorts:
+        - ports:
+            - port: "4222"
+              protocol: TCP
+
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-prometheus-scrape
+  namespace: nats
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: nats
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+            app.kubernetes.io/name: prometheus
+      toPorts:
+        - ports:
+            - port: "7777"
+              protocol: TCP
