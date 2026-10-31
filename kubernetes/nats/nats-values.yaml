@@ -1,0 +1,80 @@
+tlsCA:
+  enabled: true
+  configMapName: homelab-ca
+  key: ca.crt
+
+config:
+  cluster:
+    enabled: true
+    replicas: 3
+    routeURLs:
+      useFQDN: true
+    tls:
+      enabled: true
+      secretName: nats-server
+      merge:
+        verify: true
+
+  jetstream:
+    enabled: true
+    fileStore:
+      pvc:
+        size: 5Gi
+        # JetStream replicates at R3 itself; Longhorn's 2 replicas would make six copies.
+        storageClassName: longhorn-single
+
+  nats:
+    tls:
+      enabled: true
+      secretName: nats-server
+      merge:
+        verify_and_map: true
+
+  merge:
+    system_account: SYS
+    accounts:
+      APP:
+        jetstream: enabled
+        users:
+          - user: "CN=nats-box.nats"
+      SYS:
+        users:
+          - user: "CN=nats-box-sys.nats"
+
+container:
+  merge:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        memory: 1Gi
+
+podTemplate:
+  topologySpreadConstraints:
+    kubernetes.io/hostname:
+      maxSkew: 1
+      whenUnsatisfiable: DoNotSchedule
+  merge:
+    spec:
+      nodeSelector:
+        node-type: standard
+
+promExporter:
+  enabled: true
+  podMonitor:
+    enabled: true
+
+natsBox:
+  contexts:
+    default:
+      tls:
+        secretName: nats-box
+    sys:
+      tls:
+        secretName: nats-box-sys
+  podTemplate:
+    merge:
+      spec:
+        nodeSelector:
+          node-type: standard

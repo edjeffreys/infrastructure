@@ -62,18 +62,31 @@ Store both. The root item is never referenced by the cluster:
 
 ```bash
 op item create --vault Secrets --category "Secure Note" --title "Homelab Root CA" \
-  'root_ca.crt[file]=root_ca.crt' 'root_ca.key[file]=root_ca.key' \
+  'root_ca\.crt[file]=root_ca.crt' 'root_ca\.key[file]=root_ca.key' \
   'key password[password]=<the password step prompted for>'
 ```
 
 ```bash
 op item create --vault Secrets --category "Secure Note" --title "Homelab Intermediate CA" \
-  'tls.crt[file]=intermediate_ca.crt' 'tls.key[file]=intermediate_ca.key' 'ca.crt[file]=root_ca.crt'
+  'tls\.crt[file]=intermediate_ca.crt' 'tls\.key[file]=intermediate_ca.key' 'ca\.crt[file]=root_ca.crt'
 ```
+
+**The backslashes are load-bearing.** In an `op` assignment a bare dot
+separates *section* from *field*, so `'tls.crt[file]=…'` makes a field `crt` in
+section `tls` — and `ca.crt` a second field `crt` in section `ca`. The operator
+keys the Secret by attachment name, the two `crt` collide, and the Secret comes
+out as just `crt` and `key`. That happened on first rollout.
 
 The intermediate item is stored as **file attachments**, not text fields: the
 operator keys an attachment by its file name, and PEM survives intact, where a
-multi-line concealed field is not guaranteed to. Then delete the local copies:
+multi-line concealed field is not guaranteed to. Check the names before
+deleting anything:
+
+```bash
+op item get "Homelab Intermediate CA" --vault Secrets --format json | jq '[.files[].name]'
+```
+
+That must print exactly `tls.crt`, `tls.key` and `ca.crt`. Then delete the local copies:
 
 ```bash
 rm -P root_ca.key intermediate_ca.key root_ca.crt intermediate_ca.crt

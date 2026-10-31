@@ -538,6 +538,7 @@ See `kubernetes/arc-systems/README.md` for the full setup and a diagnosis runboo
 | mealie | mealie | standard | |
 | actual-budget | actual-budget | standard | SQLite only — see "Not migrated" above |
 | paperless | paperless | standard | Helm chart, Tailscale ingress |
+| nats | nats | standard | 3-node JetStream, mTLS (`verify_and_map`); adding a client is three changes — see `kubernetes/nats/README.md` |
 | homeassistant | homeassistant | external | ExternalName proxy → `homeassistant.mng.skaal.lan:8123`, Traefik ingress only |
 
 All workloads via Tailscale ingress. Traefik installed, internal only (+ homeassistant proxy via `home.skaal.dev`).

@@ -50,15 +50,22 @@ EXPECTED_EXTENSIONS="i915,intel-ucode,iscsi-tools,nfs-utils,qemu-guest-agent,tai
 # and gave no signal that it was.
 wait_healthy() {
   local deadline=$((SECONDS + ${1:-900}))
-  local notready degraded cnpg
+  local notready degraded cnpg nats p
   while [ "$SECONDS" -lt "$deadline" ]; do
     notready=$(kubectl get nodes --no-headers 2>/dev/null | awk '$2!="Ready"' | wc -l | tr -d ' ')
     degraded=$(kubectl -n longhorn-system get volumes.longhorn.io --no-headers 2>/dev/null \
                  | awk '$3=="attached" && $4!="healthy"' | wc -l | tr -d ' ')
     cnpg=$(kubectl -n arr get cluster arr-postgres -o jsonpath='{.status.readyInstances}' 2>/dev/null)
-    printf '    nodes_notready=%s longhorn_degraded=%s cnpg_ready=%s/2\n' \
-           "$notready" "$degraded" "${cnpg:-?}"
-    if [ "$notready" = "0" ] && [ "$degraded" = "0" ] && [ "${cnpg:-0}" = "2" ]; then
+    # Full /healthz, not the readiness probe's js-server-only: it also waits for
+    # streams to catch up, so the next node cannot take out JetStream quorum.
+    nats=0
+    for p in nats-0 nats-1 nats-2; do
+      kubectl -n nats exec "$p" -c nats -- wget -qO- http://localhost:8222/healthz >/dev/null 2>&1 \
+        && nats=$((nats + 1))
+    done
+    printf '    nodes_notready=%s longhorn_degraded=%s cnpg_ready=%s/2 nats_healthy=%s/3\n' \
+           "$notready" "$degraded" "${cnpg:-?}" "$nats"
+    if [ "$notready" = "0" ] && [ "$degraded" = "0" ] && [ "${cnpg:-0}" = "2" ] && [ "$nats" = "3" ]; then
       echo "    cluster healthy"
       return 0
     fi
