@@ -1,0 +1,32 @@
+# One sentence shared by Assist (intent_script below) and the Siri Shortcut, which reads this state.
+template:
+  - sensor:
+      - name: Bin day
+        unique_id: bin_day
+        icon: mdi:trash-can
+        state: >
+          {%- set bins = [
+            ('general waste', 'sensor.home_general_waste'),
+            ('recycling', 'sensor.home_recycling'),
+            ('garden waste', 'sensor.home_garden_waste'),
+            ('food waste', 'sensor.home_food_waste'),
+            ('glass', 'sensor.home_glass'),
+          ] -%}
+          {%- set ns = namespace(days=99, names=[]) -%}
+          {%- for name, entity in bins -%}
+            {%- set d = state_attr(entity, 'days') | int(99) -%}
+            {%- if d < ns.days -%}{%- set ns.days = d -%}{%- set ns.names = [name] -%}
+            {%- elif d == ns.days -%}{%- set ns.names = ns.names + [name] -%}{%- endif -%}
+          {%- endfor -%}
+          {%- set n = ns.names -%}
+          {%- set what = (n[:-1] | join(', ') ~ ' and ' ~ n[-1]) if n | count > 1 else (n | first | default('')) -%}
+          {%- if ns.days == 99 -%}I don't have the bin collection dates right now.
+          {%- elif ns.days == 0 -%}It's bin day today: {{ what }}.
+          {%- elif ns.days == 1 -%}Put the {{ what }} out tonight. They're collected tomorrow.
+          {%- else -%}No bins today. Next is {{ what }} on {{ (now() + timedelta(days=ns.days)).strftime('%A %-d %B') }}, in {{ ns.days }} days.
+          {%- endif -%}
+
+intent_script:
+  BinDay:
+    speech:
+      text: "{{ states('sensor.bin_day') }}"

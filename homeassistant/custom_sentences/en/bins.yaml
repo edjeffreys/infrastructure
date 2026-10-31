@@ -1,0 +1,9 @@
+language: en
+intents:
+  BinDay:
+    data:
+      - sentences:
+          - "(what|which) bin[s] [go|goes|are going|need to go] out [today|tonight|tomorrow|this week]"
+          - "(what|which) bin[s] (is|are) it [today|tonight|tomorrow|this week]"
+          - "when is [the] [next] bin (day|collection)"
+          - "is it bin day [today|tomorrow]"

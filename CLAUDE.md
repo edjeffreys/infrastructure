@@ -554,6 +554,8 @@ See `kubernetes/arc-systems/README.md` for the full setup and a diagnosis runboo
 
 All workloads via Tailscale ingress. Traefik installed, internal only (+ homeassistant proxy via `home.skaal.dev`).
 
+**Home Assistant config is in `homeassistant/`, not Flux.** HA runs on its own HAOS VM; `packages/` and `dashboards/` there are deployed with `homeassistant/deploy.sh` over `ssh homeassistant`, which replaces `/config/packages` and `/config/dashboards` wholesale. Never edit those on HA directly. See `homeassistant/README.md`.
+
 ---
 
 ## Key Gotchas

@@ -1,0 +1,300 @@
+title: Heating
+views:
+- title: Heating
+  path: heating
+  icon: mdi:radiator
+  type: sections
+  max_columns: 3
+  sections:
+  - type: grid
+    cards:
+    - type: heading
+      heading: Now
+      icon: mdi:home-thermometer
+    - type: markdown
+      content: |-
+        {% set t = states('input_number.heating_target_normal') | int(0) %}
+        {% set b = states('number.boiler_normal_temperature') | int(0) %}
+        {% set r = states('number.boiler_reduced_temperature') | int(0) %}
+        {% set rt = states('input_number.heating_target_reduced') | int(0) %}
+        {% set h = states('sensor.house_temperature') | float(none) %}
+        {% set prog = state_attr('climate.boiler_heating', 'active_vicare_program') or '' %}
+        {% set on = is_state('input_boolean.heating_solar_control', 'on') %}
+        {% set el = state_attr('sun.sun', 'elevation') | float(0) %}
+        {% set cc = state_attr('weather.forecast_home', 'cloud_coverage') | float(100) %}
+        {% if not is_state('climate.boiler_heating', 'auto') %}### ⏻ Heating off
+        {% elif prog.startswith('reduced') %}### 🌙 Schedule: reduced ({{ r }} °C)
+        Overnight/away setback from the ViCare schedule{{ ', lowered from ' ~ rt ~ ' °C with normal' if r < rt }}.
+        {% elif prog.startswith('comfort') %}### 🔥 Schedule: comfort ({{ states('number.boiler_comfort_temperature') }} °C)
+        {% else %}### 🏠 Schedule: normal
+        {% endif %}
+        {% set o = states('sensor.outside_temperature_1h') | float(none) %}
+        {% set th = states('input_number.heating_cutoff_outdoor') | float(0) %}
+        {% if is_state('binary_sensor.heating_cutoff_active', 'on') %}**🌤️ Warm-weather cutoff: heating off** — outside {{ o }} °C (1h mean) ≥ {{ th }} °C, so normal is parked at **{{ b }} °C**. Resumes below {{ th - 1 }} °C outside, or if the house falls below {{ t - 1 }} °C.
+        {% elif not on %}**Solar compensation off** — normal held at target ({{ b }} °C).
+        {% elif b < t %}**☀️ Solar compensation: {{ b - t }} °C** — house is {{ '%+.1f' | format(h - t) if h is not none else '?' }} °C vs the {{ t }} °C target, so normal is held at **{{ b }} °C** and reduced at **{{ r }} °C**. Restores at {{ (t + states('input_number.heating_solar_restore_margin') | float(0.2)) | round(1) }} °C.
+        {% else %}**Solar compensation idle** — normal at target ({{ b }} °C), house {{ h }} °C.
+        {% endif %}
+        {% if is_state('input_boolean.heating_cutoff', 'on') and is_state('binary_sensor.heating_cutoff_active', 'off') %}Cutoff armed at {{ th }} °C · outside now {{ o }} °C
+
+        {% endif %}{% if is_state('binary_sensor.heating_sunny', 'on') %}🌞 Sunny now ({{ cc | int }}% cloud, sun {{ el | round(0) | int }}°) — 1 °C pre-emptive drop once the house reaches target.
+        {% elif el > 0 %}⛅ Sun up but cloudy ({{ cc | int }}% cloud).
+        {% else %}🌙 Sun down.{% endif %}
+
+        Burner **{{ states('binary_sensor.boiler_burner') }}** at {{ states('sensor.boiler_burner_modulation') }}% · flow {{ states('sensor.boiler_supply_temperature') }} °C
+      grid_options:
+        columns: full
+    - type: tile
+      entity: sensor.house_temperature
+      name: House
+    - type: tile
+      entity: sensor.boiler_outside_temperature
+      name: Outside
+    - type: tile
+      entity: number.boiler_normal_temperature
+      name: Boiler set to
+      icon: mdi:water-boiler
+    - type: tile
+      entity: sensor.heating_active_setpoint
+      name: Active setpoint
+      icon: mdi:target
+    - type: tile
+      entity: sensor.boiler_supply_temperature
+      name: Flow
+    - type: tile
+      entity: sensor.boiler_burner_modulation
+      name: Burner
+      icon: mdi:fire
+    - type: tile
+      entity: binary_sensor.recent_solar_gain
+      name: Recent solar gain
+    - type: tile
+      entity: weather.forecast_home
+      name: Weather
+    - type: tile
+      entity: binary_sensor.heating_cutoff_active
+      name: Cutoff active
+    - type: tile
+      entity: sensor.outside_temperature_1h
+      name: Outside (1h mean)
+  - type: grid
+    cards:
+    - type: heading
+      heading: Controls
+      icon: mdi:tune
+    - type: tile
+      entity: input_number.heating_target_normal
+      name: Normal (day)
+      icon: mdi:white-balance-sunny
+      features:
+      - type: numeric-input
+        style: buttons
+      features_position: bottom
+    - type: tile
+      entity: input_number.heating_target_reduced
+      name: Reduced (night/away)
+      icon: mdi:weather-night
+      features:
+      - type: numeric-input
+        style: buttons
+      features_position: bottom
+    - type: tile
+      entity: climate.boiler_heating
+      name: Schedule (set in ViCare)
+      state_content:
+      - preset_mode
+      - hvac_action
+      grid_options:
+        columns: full
+    - type: heading
+      heading: Solar compensation
+      heading_style: subtitle
+    - type: tile
+      entity: input_boolean.heating_solar_control
+      name: Enabled
+      features:
+      - type: toggle
+      features_position: inline
+    - type: tile
+      entity: input_number.heating_solar_setback
+      name: Max drop
+      features:
+      - type: numeric-input
+        style: buttons
+      features_position: bottom
+    - type: tile
+      entity: input_number.heating_solar_restore_margin
+      name: Restore within
+      features:
+      - type: numeric-input
+        style: buttons
+      features_position: bottom
+    - type: heading
+      heading: Warm-weather cutoff
+      heading_style: subtitle
+    - type: tile
+      entity: input_boolean.heating_cutoff
+      name: Enabled
+      features:
+      - type: toggle
+      features_position: inline
+    - type: tile
+      entity: input_number.heating_cutoff_outdoor
+      name: Off above (outside)
+      features:
+      - type: numeric-input
+        style: buttons
+      features_position: bottom
+    - type: heading
+      heading: Rooms
+      icon: mdi:floor-plan
+    - type: tile
+      entity: sensor.bedroom_temperature
+      name: Nursery
+    - type: tile
+      entity: sensor.bedroom_ht
+      name: Nursery battery
+    - type: tile
+      entity: sensor.kitchen_temperature
+      name: Kitchen
+    - type: tile
+      entity: sensor.kitchen_ht
+      name: Kitchen battery
+    - type: tile
+      entity: sensor.bathroom_temperature
+      name: Living room
+    - type: tile
+      entity: sensor.bathroom_ht
+      name: Living room battery
+  - type: grid
+    cards:
+    - type: heading
+      heading: Curve advisor
+      icon: mdi:chart-bell-curve-cumulative
+    - type: markdown
+      content: |-
+        {% set cs = states('number.boiler_heating_curve_slope') | float(0) %}
+        {% set ch = states('number.boiler_heating_curve_shift') | float(0) %}
+        {% set rs = states('sensor.heating_curve_recommended_slope') | float(none) %}
+        {% set rh = states('sensor.heating_curve_recommended_shift') | float(none) %}
+        {% set tset = states('input_number.heating_target_normal') | float(19) %}
+        **Status:** {{ states('sensor.heating_curve_recommendation') }}
+
+        **Last hour:** {{ states('sensor.heating_curve_sample') }}{% if state_attr('sensor.heating_curve_sample', 'required_flow') is not none %} — needed {{ state_attr('sensor.heating_curve_sample', 'required_flow') }} °C flow at {{ state_attr('sensor.heating_curve_sample', 'outdoor') | round(1) }} °C outside{% endif %}
+
+        **Clean samples:** {{ states('sensor.heating_curve_fit') }} {% if states('sensor.heating_curve_fit') | float(0) > 0 %}(outdoor {{ state_attr('sensor.heating_curve_recommendation', 'outdoor_range') }}){% endif %}
+
+        | | Current | Recommended |
+        |:--|--:|--:|
+        | Slope | {{ cs }} | {{ rs if rs is not none else '—' }} |
+        | Shift | {{ ch | int }} | {{ rh | int if rh is not none else '—' }} |
+
+        Flow temperature at a {{ tset | int }} °C setpoint:
+
+        | Outside | Current curve | Recommended |
+        |:--|--:|--:|
+        {% for to in [-5, 0, 5, 10, 15] -%}
+        {%- set d = to - tset -%}
+        {%- set g = -d * (1.4347 + 0.021 * d + 0.0002479 * d * d) -%}
+        | {{ to }} °C | {{ (tset + ch + cs * g) | round(1) }} °C | {{ ((tset + rh + rs * g) | round(1) ~ ' °C') if rs is not none and rh is not none else '—' }} |
+        {% endfor %}
+      grid_options:
+        columns: full
+  - type: grid
+    column_span: 3
+    cards:
+    - type: heading
+      heading: Last 48 hours
+      icon: mdi:chart-line
+    - type: history-graph
+      title: House vs target
+      hours_to_show: 48
+      grid_options:
+        columns: full
+      entities:
+      - entity: sensor.house_temperature
+        name: House
+      - entity: input_number.heating_target_normal
+        name: Target
+      - entity: sensor.heating_active_setpoint
+        name: Active setpoint (incl. schedule)
+      - entity: number.boiler_normal_temperature
+        name: Boiler set to
+      - entity: sensor.boiler_outside_temperature
+        name: Outside
+    - type: history-graph
+      title: Boiler
+      hours_to_show: 48
+      grid_options:
+        columns: full
+      entities:
+      - entity: sensor.boiler_supply_temperature
+        name: Flow
+      - entity: sensor.boiler_burner_modulation
+        name: Modulation
+    - type: statistics-graph
+      title: Burner starts per hour
+      chart_type: bar
+      period: hour
+      days_to_show: 2
+      stat_types:
+      - change
+      grid_options:
+        columns: full
+      entities:
+      - entity: sensor.boiler_burner_starts
+        name: Starts
+    - type: history-graph
+      title: Sun & burner
+      hours_to_show: 48
+      grid_options:
+        columns: full
+      entities:
+      - entity: binary_sensor.recent_solar_gain
+        name: Recent solar gain
+      - entity: binary_sensor.boiler_burner
+        name: Burner
+      - entity: automation.heating_solar_setback
+        name: Solar compensation
+      - entity: binary_sensor.heating_cutoff_active
+        name: Warm-weather cutoff
+  - type: grid
+    column_span: 3
+    cards:
+    - type: heading
+      heading: Daily trends
+      icon: mdi:calendar-month
+    - type: statistics-graph
+      title: Heating gas per day
+      chart_type: bar
+      period: day
+      days_to_show: 30
+      stat_types:
+      - state
+      entities:
+      - entity: sensor.heating_gas_usage_today
+        name: Heating gas
+    - type: statistics-graph
+      title: Burner starts per day
+      chart_type: bar
+      period: day
+      days_to_show: 30
+      stat_types:
+      - change
+      entities:
+      - entity: sensor.boiler_burner_starts
+        name: Starts
+    - type: statistics-graph
+      title: Outside vs house (daily mean)
+      chart_type: line
+      period: day
+      days_to_show: 30
+      stat_types:
+      - mean
+      entities:
+      - entity: sensor.boiler_outside_temperature
+        name: Outside
+      - entity: sensor.house_temperature
+        name: House
+      - entity: sensor.boiler_supply_temperature
+        name: Flow

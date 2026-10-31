@@ -1,0 +1,360 @@
+homeassistant:
+  customize:
+    # MQTT sensors carry no state_class, so HA kept no long-term statistics.
+    sensor.bedroom_temperature: { state_class: measurement }
+    sensor.kitchen_temperature: { state_class: measurement }
+    sensor.bathroom_temperature: { state_class: measurement }
+
+input_number:
+  heating_target_normal:
+    name: Heating target (normal)
+    icon: mdi:thermostat
+    min: 15
+    max: 23
+    step: 1
+    unit_of_measurement: °C
+  heating_target_reduced:
+    name: Heating target (reduced)
+    icon: mdi:weather-night
+    min: 12
+    max: 20
+    step: 1
+    unit_of_measurement: °C
+  heating_solar_setback:
+    name: Solar compensation (max)
+    icon: mdi:thermometer-minus
+    min: 0
+    max: 4
+    step: 1
+    unit_of_measurement: °C
+  # Capped below the 0.5 °C drop threshold, or compensation would flap.
+  heating_solar_restore_margin:
+    name: Solar compensation restore margin
+    icon: mdi:thermometer-plus
+    min: 0
+    max: 0.4
+    step: 0.1
+    unit_of_measurement: °C
+  heating_cutoff_outdoor:
+    name: Warm-weather cutoff threshold
+    icon: mdi:thermometer-chevron-up
+    min: 10
+    max: 20
+    step: 0.5
+    unit_of_measurement: °C
+
+input_boolean:
+  heating_solar_control:
+    name: Solar compensation
+    icon: mdi:weather-sunny
+  heating_cutoff:
+    name: Warm-weather cutoff
+    icon: mdi:radiator-off
+
+sensor:
+  - platform: statistics
+    name: House temperature 1h
+    unique_id: heating_house_temperature_1h
+    entity_id: sensor.house_temperature
+    state_characteristic: mean
+    max_age: { hours: 1 }
+    keep_last_sample: true
+    sampling_size: 2000
+  # Time-weighted: the H&Ts report sparsely, so a plain mean would weight bursts of reports.
+  - platform: statistics
+    name: House temperature 30m
+    unique_id: heating_house_temperature_30m
+    entity_id: sensor.house_temperature
+    state_characteristic: average_step
+    max_age: { minutes: 30 }
+    keep_last_sample: true
+    sampling_size: 500
+  - platform: statistics
+    name: Outside temperature 1h
+    unique_id: heating_outside_temperature_1h
+    entity_id: sensor.boiler_outside_temperature
+    state_characteristic: mean
+    max_age: { hours: 1 }
+    keep_last_sample: true
+    sampling_size: 2000
+  - platform: statistics
+    name: Heating supply temperature 1h
+    unique_id: heating_supply_temperature_1h
+    entity_id: sensor.boiler_supply_temperature
+    state_characteristic: mean
+    max_age: { hours: 1 }
+    keep_last_sample: true
+    sampling_size: 2000
+  - platform: statistics
+    name: Heating supply max 1h
+    unique_id: heating_supply_max_1h
+    entity_id: sensor.boiler_supply_temperature
+    state_characteristic: value_max
+    max_age: { hours: 1 }
+    keep_last_sample: true
+    sampling_size: 2000
+  - platform: statistics
+    name: DHW gas change 1h
+    unique_id: heating_dhw_gas_change_1h
+    entity_id: sensor.boiler_dhw_gas_consumption_today
+    state_characteristic: change
+    max_age: { hours: 1 }
+    keep_last_sample: true
+    sampling_size: 200
+
+template:
+  - sensor:
+      - name: House temperature
+        unique_id: heating_house_temperature
+        unit_of_measurement: °C
+        device_class: temperature
+        state_class: measurement
+        availability: >
+          {{ ['sensor.bedroom_temperature', 'sensor.kitchen_temperature', 'sensor.bathroom_temperature']
+             | select('has_value') | list | count >= 2 }}
+        state: >
+          {% set t = ['sensor.bedroom_temperature', 'sensor.kitchen_temperature', 'sensor.bathroom_temperature']
+             | select('has_value') | map('states') | map('float') | list %}
+          {{ (t | sum / t | count) | round(2) }}
+
+      - name: Heating active setpoint
+        unique_id: heating_active_setpoint
+        unit_of_measurement: °C
+        state: "{{ state_attr('climate.boiler_heating', 'temperature') }}"
+
+      - name: Heating curve recommended slope
+        unique_id: heating_curve_recommended_slope
+        icon: mdi:chart-bell-curve-cumulative
+        state: "{{ state_attr('sensor.heating_curve_recommendation', 'slope') }}"
+
+      - name: Heating curve recommended shift
+        unique_id: heating_curve_recommended_shift
+        icon: mdi:arrow-up-down
+        unit_of_measurement: °C
+        state: "{{ state_attr('sensor.heating_curve_recommendation', 'shift') }}"
+
+      - name: Heating curve recommendation
+        unique_id: heating_curve_recommendation
+        icon: mdi:lightbulb-on-outline
+        state: >
+          {% set f = states.sensor.heating_curve_fit.attributes if states.sensor.heating_curve_fit else {} %}
+          {% set n = f.get('n', 0) | float %}
+          {% if n < 24 %}collecting ({{ n | round(0) | int }}/24 hours)
+          {% elif (f.sxx / n - (f.sx / n) ** 2) < 4 %}shift only (needs a wider outdoor range for slope)
+          {% else %}slope and shift{% endif %}
+        attributes:
+          slope: >
+            {% set f = states.sensor.heating_curve_fit.attributes if states.sensor.heating_curve_fit else {} %}
+            {% set n = f.get('n', 0) | float %}
+            {% set cur = states('number.boiler_heating_curve_slope') | float %}
+            {% if n < 24 %}{{ none }}
+            {% elif (f.sxx / n - (f.sx / n) ** 2) < 4 %}{{ cur }}
+            {% else %}
+              {% set m = (n * f.sxy - f.sx * f.sy) / (n * f.sxx - f.sx ** 2) %}
+              {{ ([0.2, [m, 3.5] | min] | max) | round(1) }}
+            {% endif %}
+          shift: >
+            {% set f = states.sensor.heating_curve_fit.attributes if states.sensor.heating_curve_fit else {} %}
+            {% set n = f.get('n', 0) | float %}
+            {% set cur = states('number.boiler_heating_curve_slope') | float %}
+            {% if n < 24 %}{{ none }}
+            {% else %}
+              {% set m = cur if (f.sxx / n - (f.sx / n) ** 2) < 4
+                 else ([0.2, [(n * f.sxy - f.sx * f.sy) / (n * f.sxx - f.sx ** 2), 3.5] | min] | max) | round(1) %}
+              {{ ([-13, [(f.sy - m * f.sx) / n, 40] | min] | max) | round(0) | int }}
+            {% endif %}
+          outdoor_range: >
+            {% set f = states.sensor.heating_curve_fit.attributes if states.sensor.heating_curve_fit else {} %}
+            {{ f.get('tout_min') }} to {{ f.get('tout_max') }} °C
+
+  - binary_sensor:
+      # Stays on for 4h after the sun goes: the fabric keeps releasing stored heat.
+      - name: Recent solar gain
+        unique_id: heating_recent_solar_gain
+        delay_off: { hours: 4 }
+        state: >
+          {{ state_attr('sun.sun', 'elevation') | float(0) > 10
+             and state_attr('weather.forecast_home', 'cloud_coverage') | float(100) < 60 }}
+
+      # delay_off stops cloud cover flickering across 60% from toggling compensation.
+      - name: Heating sunny
+        unique_id: heating_sunny
+        icon: mdi:weather-sunny
+        delay_off: { minutes: 30 }
+        state: >
+          {{ state_attr('sun.sun', 'elevation') | float(0) > 10
+             and state_attr('weather.forecast_home', 'cloud_coverage') | float(100) < 60 }}
+
+      # The outdoor sensor reads high in sun, so the house guard is what stops a cold house staying cut off.
+      - name: Heating cutoff active
+        unique_id: heating_cutoff_active
+        icon: mdi:radiator-off
+        state: >
+          {% set o = states('sensor.outside_temperature_1h') | float(none) %}
+          {% set h = states('sensor.house_temperature') | float(none) %}
+          {% set th = states('input_number.heating_cutoff_outdoor') | float(99) %}
+          {% set t = states('input_number.heating_target_normal') | float(0) %}
+          {{ is_state('input_boolean.heating_cutoff', 'on') and o is not none and h is not none
+             and h >= t - 1 and (o >= th or (this.state == 'on' and o >= th - 1)) }}
+
+  - triggers:
+      - trigger: time_pattern
+        minutes: 0
+    action:
+      - variables:
+          s: >
+            {% set tin = states('sensor.house_temperature_1h') | float(-99) %}
+            {% set tout = states('sensor.outside_temperature_1h') | float(-99) %}
+            {% set flow = states('sensor.heating_supply_temperature_1h') | float(-99) %}
+            {% set tset = states('sensor.heating_active_setpoint') | float(-99) %}
+            {% set slope = states('number.boiler_heating_curve_slope') | float(-99) %}
+            {% set shift = states('number.boiler_heating_curve_shift') | float(-99) %}
+            {% set half_dt = 5 %}
+            {# Measured flow is useless here: it sees DHW firing and burner-off coasting. Use what the curve asked for. #}
+            {% set d0 = tout - tset %}
+            {% set curve = tset + shift - slope * d0 * (1.4347 + 0.021 * d0 + 0.0002479 * d0 * d0) %}
+            {% set mwt = curve - half_dt %}
+            {% set reason = '' %}
+            {% if -99 in [tin, tout, flow, tset, slope, shift] %}{% set reason = 'missing data' %}
+            {% elif not is_state('climate.boiler_heating', 'auto') %}{% set reason = 'heating off' %}
+            {% elif is_state('binary_sensor.recent_solar_gain', 'on') %}{% set reason = 'solar gain' %}
+            {% elif tout > 12 %}{% set reason = 'too mild: boiler at minimum output' %}
+            {% elif states('sensor.dhw_gas_change_1h') | float(0) != 0
+                 or states('sensor.heating_supply_max_1h') | float(0) > curve + 15 %}{% set reason = 'hot water used' %}
+            {% elif now() - states.sensor.heating_active_setpoint.last_changed < timedelta(hours=3) %}{% set reason = 'setpoint changed recently' %}
+            {% elif now() - ([states.number.boiler_heating_curve_slope.last_changed,
+                              states.number.boiler_heating_curve_shift.last_changed] | max) < timedelta(hours=3) %}{% set reason = 'curve changed recently' %}
+            {% elif tin - tout < 3 or mwt - tin < 3 %}{% set reason = 'no heat demand' %}
+            {% endif %}
+            {% set x, y = 0, 0 %}
+            {% if reason == '' %}
+              {% set mwt_req = tset + (mwt - tin) * ((tset - tout) / (tin - tout)) ** (1 / 1.3) %}
+              {% set d = tout - tset %}
+              {% set x = -d * (1.4347 + 0.021 * d + 0.0002479 * d * d) %}
+              {% set y = mwt_req + half_dt - tset %}
+            {% endif %}
+            {{ {'valid': reason == '', 'reason': reason or 'ok', 'x': x | round(3), 'y': y | round(3),
+                'tin': tin, 'tout': tout, 'flow': flow, 'curve': curve | round(1), 'tset': tset} }}
+    sensor:
+      - name: Heating curve sample
+        unique_id: heating_curve_sample
+        icon: mdi:test-tube
+        state: "{{ s.reason }}"
+        attributes:
+          indoor: "{{ s.tin }}"
+          outdoor: "{{ s.tout }}"
+          flow: "{{ s.flow }}"
+          curve_flow: "{{ s.curve }}"
+          setpoint: "{{ s.tset }}"
+          required_flow: "{{ (s.y + s.tset) | round(1) if s.valid else none }}"
+
+      # Decay 0.995/sample ≈ 200-hour memory, so the fit tracks seasonal change.
+      - name: Heating curve fit
+        unique_id: heating_curve_fit
+        icon: mdi:sigma
+        state: "{{ this.attributes.get('n', 0) | float | round(1) if not s.valid else (this.attributes.get('n', 0) | float * 0.995 + 1) | round(1) }}"
+        attributes:
+          n: "{% set o = this.attributes.get('n', 0) | float %}{{ (o * 0.995 + 1) if s.valid else o }}"
+          sx: "{% set o = this.attributes.get('sx', 0) | float %}{{ (o * 0.995 + s.x) if s.valid else o }}"
+          sy: "{% set o = this.attributes.get('sy', 0) | float %}{{ (o * 0.995 + s.y) if s.valid else o }}"
+          sxx: "{% set o = this.attributes.get('sxx', 0) | float %}{{ (o * 0.995 + s.x * s.x) if s.valid else o }}"
+          sxy: "{% set o = this.attributes.get('sxy', 0) | float %}{{ (o * 0.995 + s.x * s.y) if s.valid else o }}"
+          tout_min: "{% set o = this.attributes.get('tout_min', 99) | float %}{{ ([o, s.tout] | min) if s.valid else o }}"
+          tout_max: "{% set o = this.attributes.get('tout_max', -99) | float %}{{ ([o, s.tout] | max) if s.valid else o }}"
+
+automation:
+  - id: heating_solar_setback
+    alias: Heating solar compensation
+    description: >
+      Owns number.boiler_normal_temperature and number.boiler_reduced_temperature:
+      set your targets on input_number.heating_target_normal and
+      input_number.heating_target_reduced instead.
+    mode: queued
+    triggers:
+      - trigger: time_pattern
+        minutes: /15
+      - trigger: state
+        entity_id:
+          - input_boolean.heating_solar_control
+          - input_number.heating_target_normal
+          - input_number.heating_target_reduced
+          - input_number.heating_solar_setback
+          - input_number.heating_solar_restore_margin
+          - binary_sensor.heating_cutoff_active
+          - binary_sensor.heating_sunny
+          - sensor.house_temperature
+    conditions:
+      - condition: state
+        entity_id: climate.boiler_heating
+        state: auto
+    actions:
+      - variables:
+          target: "{{ states('input_number.heating_target_normal') | int }}"
+          house: "{{ states('sensor.house_temperature') | float(none) }}"
+          # min(): a brief spike can't trigger a drop, and a lagging average can't hold one past the restore point.
+          level: >
+            {{ [states('sensor.house_temperature_30m') | float(house), house] | min if house is not none else none }}
+          current: "{{ states('number.boiler_normal_temperature') | int }}"
+          big: "{{ states('input_number.heating_solar_setback') | int(0) }}"
+          small: "{{ [1, big] | min }}"
+          restore: "{{ states('input_number.heating_solar_restore_margin') | float(0.2) }}"
+          held: "{{ current if target - big <= current <= target else target }}"
+          sunny: "{{ is_state('binary_sensor.heating_sunny', 'on') }}"
+          # MQTT reconnects blank all three sensors for seconds; only a longer outage restores.
+          dropout: >
+            {{ house is none and now() - states.sensor.house_temperature.last_changed < timedelta(minutes=30) }}
+          desired: >
+            {% if is_state('binary_sensor.heating_cutoff_active', 'on') %}10
+            {% elif is_state('input_boolean.heating_solar_control', 'off') %}{{ target }}
+            {% elif dropout %}{{ held }}
+            {% elif house is none %}{{ target }}
+            {% elif level >= target + 1 %}{{ target - big }}
+            {% elif level >= target + 0.5 or (sunny and level >= target) %}{{ [target - small, held] | min }}
+            {% elif house <= target + restore %}{{ target }}
+            {% else %}{{ held }}{% endif %}
+          # Weather comp has no room feedback, so reduced heats an overshooting house too.
+          desired_reduced: >
+            {% set rtarget = states('input_number.heating_target_reduced') | int %}
+            {{ 10 if desired | int == 10 else [rtarget - (target - desired | int), 10] | max }}
+      - if: "{{ desired | int != current }}"
+        then:
+          - action: number.set_value
+            target:
+              entity_id: number.boiler_normal_temperature
+            data:
+              value: "{{ desired }}"
+      - if: "{{ desired_reduced | int != states('number.boiler_reduced_temperature') | int }}"
+        then:
+          - action: number.set_value
+            target:
+              entity_id: number.boiler_reduced_temperature
+            data:
+              value: "{{ desired_reduced }}"
+
+  - id: heating_sensor_health
+    alias: Heating sensor health
+    mode: single
+    triggers:
+      - trigger: numeric_state
+        entity_id: [sensor.bedroom_ht, sensor.kitchen_ht, sensor.bathroom_ht]
+        below: 20
+      - trigger: time
+        at: "09:00:00"
+    actions:
+      - variables:
+          problems: >
+            {% set ns = namespace(p=[]) %}
+            {% for id in ['bedroom', 'kitchen', 'bathroom'] %}
+              {% set t = 'sensor.' ~ id ~ '_temperature' %}
+              {% set room = state_attr(t, 'friendly_name') | default(id, true) | replace(' Temperature', '') %}
+              {% set bat = states('sensor.' ~ id ~ '_ht') | float(-1) %}
+              {% if 0 <= bat < 20 %}{% set ns.p = ns.p + [room ~ ' battery ' ~ bat | int ~ '%'] %}{% endif %}
+              {% if not has_value(t) %}{% set ns.p = ns.p + [room ~ ' temperature unavailable'] %}{% endif %}
+            {% endfor %}
+            {{ ns.p }}
+      - condition: template
+        value_template: "{{ problems | count > 0 }}"
+      - action: notify.mobile_app_eds_iphone
+        data:
+          title: Heating sensors need attention
+          message: "{{ problems | join(', ') }}. The curve advisor and solar setback depend on them."

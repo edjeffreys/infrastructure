@@ -1,0 +1,9 @@
+lovelace:
+  dashboards:
+    dashboard-heating:
+      mode: yaml
+      title: Heating
+      icon: mdi:radiator
+      show_in_sidebar: true
+      require_admin: false
+      filename: dashboards/heating.yaml
