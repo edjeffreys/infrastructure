@@ -227,10 +227,20 @@ Kustomization alongside the rest of the app — so putting the HelmRelease in th
 app namespace is what lets the two find each other. It also makes
 `targetNamespace` and `storageNamespace` unnecessary, since both default to it.
 
-The cost is bootstrap ordering: on a cold cluster the root Kustomization applies
-the HelmRelease before the app's Kustomization has created the namespace, so the
-first pass fails and the second succeeds. Flux retries on its own; it converges
-without help, it just looks noisy in the logs once.
+The cost is bootstrap ordering, and it does **not** converge on its own. If the
+namespace is declared only in `kubernetes/<app>/`, root's server-side dry-run of
+the HelmRelease fails with `namespaces "<app>" not found` and aborts root's
+*entire* apply — so the app's Kustomization, which would have created the
+namespace, is never created either. Root then sticks at the previous revision
+and no other app's change lands until it is fixed. This was assumed to be a
+noisy first pass until `nats`, the first app since the migration whose
+namespace did not already exist, wedged root on merge.
+
+So a **new** namespace goes in `flux/apps/<app>.yaml`, as a `Namespace`
+document alongside the HelmRelease: Flux applies Namespaces in an earlier stage
+than the rest, so the HelmRelease's dry-run passes. Existing apps keep their
+`namespace.yaml` — the namespaces already exist, so they are not exposed, and
+moving one between Kustomizations risks a prune deleting it.
 
 **Always pin `releaseName`.** Charts name resources after the release, and
 `Deployment.spec.selector` is immutable — so a release name that drifts forces a
