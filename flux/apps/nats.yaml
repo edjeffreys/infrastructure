@@ -1,3 +1,10 @@
+# Here, not in kubernetes/nats/, or root's dry-run of the HelmRelease wedges root.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nats
+
+---
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: HelmRepository
 metadata:

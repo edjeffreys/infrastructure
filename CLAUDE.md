@@ -66,7 +66,9 @@ controller. These conventions predate the migration and still hold.
 
 1. Create `kubernetes/<app>/` with manifests + `network-policy.yaml` + `<app>-values.yaml` (if Helm)
 2. Create `flux/apps/<app>.yaml` — a `Kustomization`, plus a `HelmRepository`
-   (in `flux-system`) and a `HelmRelease` (in the app's own namespace) if it's a chart
+   (in `flux-system`) and a `HelmRelease` (in the app's own namespace) if it's a chart.
+   A **new** namespace for a HelmRelease is declared here, not in `kubernetes/<app>/` —
+   otherwise root's dry-run fails and wedges every app (see `kubernetes/flux-system/README.md`)
 3. Add `kubernetes/<app>/kustomization.yaml` if the directory holds a
    `-values.yaml`, with an explicit `resources:` list and a `configMapGenerator`
 4. Push — the `root` Kustomization picks it up
