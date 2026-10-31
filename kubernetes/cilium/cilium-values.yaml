@@ -42,6 +42,9 @@ cgroup:
 # With kube-proxy replaced, the agent cannot reach the API server through a
 # Service ClusterIP, so it needs the control plane VIP directly.
 kubeProxyReplacement: true
+# Socket LB is on in pods despite `bpf-lb-sock: "false"`; without this, Tailscale L4 proxies' forwarded packets skip ClusterIP translation.
+socketLB:
+  hostNamespaceOnly: true
 k8sServiceHost: 10.0.0.200
 k8sServicePort: 6443
 
