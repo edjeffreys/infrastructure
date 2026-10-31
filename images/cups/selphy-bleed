@@ -1,0 +1,140 @@
+#!/usr/bin/python3
+"""CUPS filter: application/vnd.cups-pdf -> image/pwg-raster.
+
+Borderless, the Selphy enlarges the page and trims a fixed amount off each
+edge. Each postcard page is scaled to cover only the part that survives, with
+the trimmed margin filled by stretched edge pixels. kubernetes/cups/README.md
+has the measurements.
+"""
+import os
+import subprocess
+import sys
+import tempfile
+import zlib
+
+from PIL import Image
+
+DPI = 300
+POSTCARD_PX = (1181, 1748)
+CONF = "/config/selphy-bleed.conf"
+
+
+def log(msg):
+    print(f"INFO: selphy-bleed: {msg}", file=sys.stderr, flush=True)
+
+
+def load_trim():
+    trim = {}
+    with open(CONF) as f:
+        for line in f:
+            line = line.split("#", 1)[0].strip()
+            if line:
+                key, value = line.split("=", 1)
+                trim[key.strip()] = float(value)
+    return {k: round(trim[k] * DPI / 25.4) for k in ("top", "bottom", "left", "right")}
+
+
+def compensate(page, trim):
+    w, h = page.size
+    x0, y0 = trim["left"], trim["top"]
+    x1, y1 = w - trim["right"], h - trim["bottom"]
+    ww, wh = x1 - x0, y1 - y0
+
+    scale = max(ww / w, wh / h)
+    sw, sh = round(w * scale), round(h * scale)
+    left, top = (sw - ww) // 2, (sh - wh) // 2
+    window = page.resize((sw, sh), Image.LANCZOS).crop((left, top, left + ww, top + wh))
+
+    out = Image.new("RGB", (w, h))
+    out.paste(window, (x0, y0))
+    if x0:
+        out.paste(window.crop((0, 0, 1, wh)).resize((x0, wh)), (0, y0))
+    if w - x1:
+        out.paste(window.crop((ww - 1, 0, ww, wh)).resize((w - x1, wh)), (x1, y0))
+    # Full-width rows, so the corners come from the side strips just pasted.
+    if y0:
+        out.paste(out.crop((0, y0, w, y0 + 1)).resize((w, y0)), (0, 0))
+    if h - y1:
+        out.paste(out.crop((0, y1 - 1, w, y1)).resize((w, h - y1)), (0, y1))
+    return out
+
+
+def write_pdf(pages, path):
+    """One full-page, Flate-compressed RGB image per page, so nothing is lossy."""
+    objs = {}
+    kids = []
+    n = 3
+    for page in pages:
+        w, h = page.size
+        pw, ph = w * 72 / DPI, h * 72 / DPI
+        page_id, content_id, image_id = n, n + 1, n + 2
+        n += 3
+        kids.append(page_id)
+        data = zlib.compress(page.tobytes(), 6)
+        objs[image_id] = (
+            f"<< /Type /XObject /Subtype /Image /Width {w} /Height {h} "
+            f"/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode "
+            f"/Length {len(data)} >>\nstream\n".encode() + data + b"\nendstream"
+        )
+        draw = f"q {pw:.4f} 0 0 {ph:.4f} 0 0 cm /Im0 Do Q".encode()
+        objs[content_id] = f"<< /Length {len(draw)} >>\nstream\n".encode() + draw + b"\nendstream"
+        objs[page_id] = (
+            f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {pw:.4f} {ph:.4f}] "
+            f"/Resources << /XObject << /Im0 {image_id} 0 R >> >> /Contents {content_id} 0 R >>"
+        ).encode()
+    objs[1] = b"<< /Type /Catalog /Pages 2 0 R >>"
+    objs[2] = f"<< /Type /Pages /Kids [{' '.join(f'{k} 0 R' for k in kids)}] /Count {len(kids)} >>".encode()
+
+    with open(path, "wb") as f:
+        f.write(b"%PDF-1.4\n")
+        offsets = {}
+        for i in range(1, n):
+            offsets[i] = f.tell()
+            f.write(f"{i} 0 obj\n".encode() + objs[i] + b"\nendobj\n")
+        xref = f.tell()
+        f.write(f"xref\n0 {n}\n0000000000 65535 f \n".encode())
+        for i in range(1, n):
+            f.write(f"{offsets[i]:010d} 00000 n \n".encode())
+        f.write(f"trailer\n<< /Size {n} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode())
+
+
+def gs(*args):
+    subprocess.run(["gs", "-q", "-dBATCH", "-dNOPAUSE", "-dSAFER", *args], check=True)
+
+
+def main():
+    if len(sys.argv) not in (6, 7):
+        print("Usage: selphy-bleed job-id user title copies options [file]", file=sys.stderr)
+        return 1
+
+    trim = load_trim()
+    with tempfile.TemporaryDirectory() as tmp:
+        src = sys.argv[6] if len(sys.argv) == 7 else os.path.join(tmp, "in.pdf")
+        if len(sys.argv) == 6:
+            with open(src, "wb") as f:
+                f.write(sys.stdin.buffer.read())
+
+        gs("-sDEVICE=png16m", f"-r{DPI}", "-o", os.path.join(tmp, "p-%04d.png"), src)
+        pages = []
+        postcards = True
+        for name in sorted(p for p in os.listdir(tmp) if p.startswith("p-")):
+            page = Image.open(os.path.join(tmp, name)).convert("RGB")
+            if all(abs(a - b) <= 2 for a, b in zip(page.size, POSTCARD_PX)):
+                page = compensate(page, trim)
+            else:
+                postcards = False
+                log(f"{name}: {page.size[0]}x{page.size[1]} is not a postcard, left as is")
+            pages.append(page)
+        log(f"{len(pages)} page(s), trim {trim} px")
+
+        out = os.path.join(tmp, "out.pdf")
+        write_pdf(pages, out)
+        sys.stdout.flush()
+        size_name = ["-scupsPageSizeName=Postcard.Borderless"] if postcards else []
+        gs("-sDEVICE=pwgraster", f"-r{DPI}", "-dcupsColorSpace=19", "-dcupsBitsPerColor=8",
+           *size_name, "-sOutputFile=%stdout", out)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -15,13 +15,50 @@ lays photos out badly. The queue here fixes the settings that matter:
   demoted: with both offered, the first iPhone print came out with a white
   border. iOS lists each size once, and most likely asked for "Postcard"
   without zero margins, so CUPS matched the bordered entry.
-- **JPEG and URF pass through untouched.** The `cupsFilter2 ... 0 -` lines hand
-  both formats to the printer as received. Nothing on this side re-encodes.
+- **The printer's trim is compensated.** Every page goes through the
+  `selphy-bleed` filter on its way to the printer — see "Borderless trim"
+  below. Nothing in the chain is lossy: the filter's intermediate PDF uses
+  Flate, and the printer receives PWG raster.
 
 `Selphy.ppd` came from `lpadmin -m everywhere` against the printer, with the
 bordered size entries deleted, the four `*Default*` size lines pointed at
 `Postcard.Borderless`, and the macOS-only `*AP*` keys dropped. If the printer's firmware changes what it
 advertises, regenerate it the same way rather than editing sizes by hand.
+
+## Borderless trim
+
+Borderless, the Selphy enlarges the page past the paper's edges and trims a
+fixed amount off each one. Measured with a chart of nested 1 mm boxes, and
+consistent from sheet to sheet:
+
+| Edge, landscape print held upright | Trim | Edge in the page CUPS sends |
+|---|---|---|
+| left | 4 mm | top |
+| right | 0.5 mm | bottom |
+| top | 3 mm | right |
+| bottom | 3 mm | left |
+
+The second column is the frame `selphy-bleed.conf` uses. pdftopdf turns a
+landscape page 90° clockwise onto the portrait paper, so the photo's frame
+and the printer's differ; the values are in the printer's.
+
+`images/cups/selphy-bleed` (`application/vnd.cups-pdf` → `image/pwg-raster`,
+after pdftopdf) scales each postcard page to cover just the part of the card
+that survives, positions it to match the uneven trim, and fills the trimmed
+margin by stretching the edge pixels outwards — so the printer cuts off
+stretched edge rather than photo, and a sheet that lands a fraction off shows
+more stretched edge rather than white. The cost is about 1.4 mm off the
+photo's top and bottom (landscape), where the surviving window's 1.53 ratio
+is wider than the page's 1.48. Card and L-size pages pass through unchanged;
+only the postcard was measured.
+
+The JPEG passthrough the generated PPD had is gone, so a JPEG sent from a Mac
+is compensated too. `image/urf` still passes straight to the printer — AirPrint
+needs it advertised — and would bypass the filter, but iOS sends PDF.
+
+To re-measure, print a chart with `lp -h 10.0.0.212 -d Selphy chart.pdf`: a
+148×100 mm landscape page of nested 1 mm boxes. With the filter active every
+box should survive; adjust `selphy-bleed.conf` by whatever is still lost.
 
 ## Discovery: unicast DNS-SD, not mDNS
 
@@ -76,8 +113,8 @@ so it is only cleared by a pod restart).
 ## Image
 
 `images/cups/` builds upstream CUPS from the OpenPrinting release tarball
-(`CUPS_VERSION`, tracked by Renovate) over Debian's `cups-filters` and
-Ghostscript. Debian only ships CUPS 2.4.10 with backported fixes; its libcups
+(`CUPS_VERSION`, tracked by Renovate) over Debian's `cups-filters`,
+Ghostscript and Pillow (for `selphy-bleed`). Debian only ships CUPS 2.4.10 with backported fixes; its libcups
 is overwritten by upstream's, which is ABI-compatible within 2.4. Built by
 `.github/workflows/build-cups.yaml` on the in-cluster buildkitd and pushed to
 `ghcr.io/edjeffreys/cups`. The ConfigMap is copied into an `emptyDir` at

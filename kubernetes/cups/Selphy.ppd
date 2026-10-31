@@ -17,7 +17,7 @@
 *cupsVersion: 2.3
 *cupsSNMPSupplies: False
 *cupsLanguages: "en_US"
-*cupsFilter2: "image/jpeg image/jpeg 0 -"
+*cupsFilter2: "application/vnd.cups-pdf image/pwg-raster 0 selphy-bleed"
 *cupsManualCopies: true
 *cupsFilter2: "image/urf image/urf 100 -"
 *OpenUI *PageSize: PickOne

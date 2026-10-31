@@ -28,11 +28,12 @@ FROM debian:trixie-slim
 # the COPY below replaces it with upstream's, which keeps the same ABI.
 RUN apt-get update \
  && apt-get upgrade -y \
- && apt-get install -y --no-install-recommends cups-filters ghostscript libavahi-client3 \
+ && apt-get install -y --no-install-recommends cups-filters ghostscript libavahi-client3 python3-pil \
  && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /out/ /
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY --chmod=0755 selphy-bleed /usr/lib/cups/filter/selphy-bleed
 
 EXPOSE 631
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
