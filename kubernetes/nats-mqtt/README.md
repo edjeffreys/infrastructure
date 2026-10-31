@@ -70,11 +70,12 @@ Reloader restarts the StatefulSet when the item changes.
 
 ## Exposure
 
-`10.0.0.211`, announced from the control-plane nodes by the `nats-mqtt`
-`CiliumL2AnnouncementPolicy` (Traefik's is separate). Cilium SNATs at the
-announcing node, so pods see a node IP, never the device: **source filtering
-happens at the router** — allow the IoT VLAN and HA to `10.0.0.211` TCP 1883
-and 8883, nothing else.
+`10.0.0.211` and `2a0e:cb01:ca:fe00::211` (dual-stack), announced from the
+control-plane nodes by the `nats-mqtt` `CiliumL2AnnouncementPolicy` — ARP for
+v4, NDP for v6 (Traefik's policy is separate). Cilium SNATs at the announcing
+node, so pods see a node IP, never the device: **source filtering happens at
+the router** — allow the IoT VLAN and HA to both addresses on TCP 1883 and
+8883, nothing else.
 
 | Port | What | Use for |
 |---|---|---|
@@ -94,9 +95,11 @@ no CA upload to any device:
   validation **Auto**.
 
 Connect by **name**, not IP — the cert only covers `mqtt.skaal.dev`, so
-`10.0.0.211:8883` fails verification. The name needs its own Cloudflare A record
-(DNS only, not proxied) to `10.0.0.211`; without it the `*.skaal.dev` wildcard
-sends it to Traefik on `.210`.
+`10.0.0.211:8883` fails verification. The name is a **local override on the
+gateway**, A `10.0.0.211` **and** AAAA `2a0e:cb01:ca:fe00::211` — not in
+Cloudflare. Without the AAAA the gateway forwards it upstream and the public
+`*.skaal.dev` wildcard answers with Traefik's `::210`, so IPv6-first clients
+land on the wrong VIP. Cloudflare is only used for the DNS-01 challenge.
 
 nats-server has a single MQTT listener, so TLS cannot sit beside plaintext in
 the server itself. A **ghostunnel** sidecar in each leaf pod terminates TLS on

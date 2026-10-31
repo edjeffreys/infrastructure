@@ -7,12 +7,12 @@ metadata:
   labels:
     app.kubernetes.io/name: nats-mqtt-lb
   annotations:
-    lbipam.cilium.io/ips: "10.0.0.211"
+    lbipam.cilium.io/ips: "10.0.0.211,2a0e:cb01:ca:fe00::211"
 spec:
   type: LoadBalancer
-  # The pool has a v6 block too; this must not take an address from it.
-  ipFamilyPolicy: SingleStack
-  ipFamilies: [IPv4]
+  # mqtt.skaal.dev has an AAAA too; IPv4-only sent IPv6-first clients elsewhere.
+  ipFamilyPolicy: PreferDualStack
+  ipFamilies: [IPv4, IPv6]
   selector:
     app.kubernetes.io/instance: nats-mqtt
     app.kubernetes.io/component: nats
