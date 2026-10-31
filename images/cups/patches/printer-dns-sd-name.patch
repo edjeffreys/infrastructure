@@ -1,0 +1,11 @@
+--- a/scheduler/ipp.c	2026-10-31 16:12:49
++++ b/scheduler/ipp.c	2026-10-31 16:12:49
+@@ -4975,7 +4975,7 @@
+     if (printer->reg_name)
+       ippAddString(con->response, IPP_TAG_PRINTER, IPP_TAG_NAME, "printer-dns-sd-name", NULL, printer->reg_name);
+     else
+-      ippAddInteger(con->response, IPP_TAG_PRINTER, IPP_TAG_NOVALUE, "printer-dns-sd-name", 0);
++      ippAddString(con->response, IPP_TAG_PRINTER, IPP_TAG_NAME, "printer-dns-sd-name", NULL, printer->info ? printer->info : printer->name);
+   }
+ #endif /* HAVE_DNSSD */
+ 
