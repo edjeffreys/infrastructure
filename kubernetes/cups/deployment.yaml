@@ -23,7 +23,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: cupsd
-          image: ghcr.io/edjeffreys/cups:latest
+          image: ghcr.io/edjeffreys/cups:latest@sha256:ac295b2197dff502144b18d557a0fac82ba0a58b9459c7a11b8a957daee6e5b0
           ports:
             - name: ipp
               containerPort: 631
