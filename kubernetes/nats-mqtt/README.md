@@ -49,7 +49,13 @@ on both tiers.
 |---|---|---|
 | `shelly` | every Shelly | `shellies.>` |
 | `glow` | Glow IHD | `glow.>` |
-| `homeassistant` | HA | `shellies.>`, `glow.>`, `homeassistant.>` |
+| `homeassistant` | HA | publish `shellies.>`, `glow.>`, `homeassistant.>`; subscribe `>` |
+
+HA subscribes to `>` because it opens a discovery subscription for every
+integration that *can* use MQTT (Tasmota, ESPHome, DSMR, …); scoping it made
+each HA reconnect log ~15 `Subscription Violation` errors. It widens nothing
+that matters: the leaf only carries what the devices publish and what the hub
+lets through its leaf user.
 
 All are `allowed_connection_types: ["MQTT"]`, so a device password cannot be
 used on the NATS client port. A new device class needs a user here **and** its
