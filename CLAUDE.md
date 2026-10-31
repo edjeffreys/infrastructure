@@ -544,6 +544,7 @@ See `kubernetes/arc-systems/README.md` for the full setup and a diagnosis runboo
 | nats-mqtt | nats-mqtt | standard | 3-node leaf of `nats`, MQTT 3.1.1 on dual-stack VIP `10.0.0.211`/`::211` — TLS-only `mqtt.skaal.dev:8883` (Let's Encrypt) — the only NATS port on the LAN. HA 2027.1.0 drops MQTT 3.1.1, see the README's MQTT 5 deadline; see `kubernetes/nats-mqtt/README.md` |
 | nack | nack | standard | NATS JetStream controller: streams are `Stream` resources in git, not `nats stream add`; see `kubernetes/nats/README.md` "Streams" |
 | alert-relay | alert-relay | standard | Redpanda Connect: Alertmanager webhook → `ALERTS` stream, one message per alert on `alerts.<status>.<severity>.<alertname>`; Pushover unchanged |
+| cups | cups | standard | Print server for the Selphy CP1500 on VIP `10.0.0.212:631`; iPhones find it via an AirPrint profile, not mDNS — see `kubernetes/cups/README.md` |
 | homeassistant | homeassistant | external | ExternalName proxy → `homeassistant.mng.skaal.lan:8123`, Traefik ingress only |
 
 All workloads via Tailscale ingress. Traefik installed, internal only (+ homeassistant proxy via `home.skaal.dev`).

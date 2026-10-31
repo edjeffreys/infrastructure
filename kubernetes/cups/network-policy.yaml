@@ -1,0 +1,57 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: cups
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+
+---
+# VIP traffic is SNATed at the announcing node, so phones arrive as
+# remote-node. Filter by source at the router.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-ipp-ingress
+  namespace: cups
+spec:
+  endpointSelector:
+    matchLabels:
+      app: cups
+  ingress:
+    - fromEntities:
+        - remote-node
+        - host
+      toPorts:
+        - ports:
+            - port: "631"
+              protocol: TCP
+
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-printer-egress
+  namespace: cups
+spec:
+  endpointSelector:
+    matchLabels:
+      app: cups
+  egress:
+    - toCIDR:
+        - 10.100.0.232/32
+      toPorts:
+        - ports:
+            - port: "631"
+              protocol: TCP
