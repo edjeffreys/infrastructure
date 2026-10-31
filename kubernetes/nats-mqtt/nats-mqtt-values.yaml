@@ -142,7 +142,8 @@ podTemplate:
         ports:
           - {name: mqtts, containerPort: 8883, protocol: TCP}
         readinessProbe:
-          httpGet: {path: /_status, port: 6060}
+          # ghostunnel serves --status over TLS with the listener's cert; kubelet doesn't verify it.
+          httpGet: {path: /_status, port: 6060, scheme: HTTPS}
         resources:
           requests: {cpu: 5m, memory: 16Mi}
           limits: {memory: 64Mi}
