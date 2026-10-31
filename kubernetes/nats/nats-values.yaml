@@ -52,6 +52,15 @@ config:
             permissions:
               publish: &mqtt-subjects ["shellies.>", "glow.>", "homeassistant.>"]
               subscribe: *mqtt-subjects
+          - user: "CN=nack.nack"
+            permissions:
+              publish: ["$JS.API.>"]
+              subscribe: ["_INBOX.>"]
+          - user: "CN=alert-relay.alert-relay"
+            permissions:
+              publish: ["alerts.>"]
+              # JetStream publish acks come back on an inbox.
+              subscribe: ["_INBOX.>"]
       SYS:
         users:
           - user: "CN=nats-box-sys.nats"

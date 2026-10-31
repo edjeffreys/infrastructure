@@ -1,0 +1,15 @@
+apiVersion: jetstream.nats.io/v1beta2
+kind: Stream
+metadata:
+  name: alerts
+  namespace: alert-relay
+spec:
+  name: ALERTS
+  subjects: ["alerts.>"]
+  storage: file
+  replicas: 3
+  maxAge: 720h
+  maxBytes: 268435456
+  # Longer than the 4h repeatInterval, so a re-sent notification is dropped as a duplicate.
+  duplicateWindow: 5h
+  preventDelete: true

@@ -147,6 +147,14 @@ spec:
   egress:
     - toEntities:
         - world
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: alert-relay
+            app: alert-relay
+      toPorts:
+        - ports:
+            - port: "4195"
+              protocol: TCP
 
 ---
 # Grafana needs internet access for plugin downloads and grafana.com checks

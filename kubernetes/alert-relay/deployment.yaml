@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alert-relay
+  namespace: alert-relay
+  annotations:
+    # Neither the config nor the client cert is re-read without a restart.
+    reloader.stakater.com/auto: "true"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: alert-relay
+  template:
+    metadata:
+      labels:
+        app: alert-relay
+    spec:
+      nodeSelector:
+        node-type: standard
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: alert-relay
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: connect
+          image: redpandadata/connect:4.115.1@sha256:d9b5388444c4c4d79a5867a8be534d0f6de2be1e54cee746b79e282fb4ff2dbb
+          args: [run, /etc/connect/connect.yaml]
+          ports:
+            - name: http
+              containerPort: 4195
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: http
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - {name: config, mountPath: /etc/connect, readOnly: true}
+            - {name: homelab-ca, mountPath: /etc/nats-ca, readOnly: true}
+            - {name: nats-client, mountPath: /etc/nats-client, readOnly: true}
+      volumes:
+        - name: config
+          configMap:
+            name: alert-relay
+        - name: homelab-ca
+          configMap:
+            name: homelab-ca
+        - name: nats-client
+          secret:
+            secretName: alert-relay-nats

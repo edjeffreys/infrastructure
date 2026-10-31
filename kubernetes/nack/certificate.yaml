@@ -1,0 +1,15 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: nack
+  namespace: nack
+spec:
+  secretName: nack-nats
+  duration: 2160h
+  renewBefore: 720h
+  issuerRef:
+    kind: ClusterIssuer
+    name: homelab-ca
+  commonName: nack.nack
+  usages:
+    - client auth

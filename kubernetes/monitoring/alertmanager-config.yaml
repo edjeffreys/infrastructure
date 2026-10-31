@@ -8,16 +8,25 @@ metadata:
     alertmanagerConfig: homelab
 spec:
   route:
-    receiver: pushover
-    matchers:
-      - name: severity
-        matchType: =~
-        value: "warning|critical"
+    receiver: "null"
     groupBy: ['alertname', 'namespace']
     groupWait: 30s
     groupInterval: 5m
     repeatInterval: 4h
+    routes:
+      - receiver: nats
+        continue: true
+      - receiver: pushover
+        matchers:
+          - name: severity
+            matchType: =~
+            value: "warning|critical"
   receivers:
+    - name: "null"
+    - name: nats
+      webhookConfigs:
+        - url: http://alert-relay.alert-relay.svc:4195/alertmanager
+          sendResolved: true
     - name: pushover
       pushoverConfigs:
         - userKey:

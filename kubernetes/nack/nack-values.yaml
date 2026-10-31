@@ -1,0 +1,46 @@
+jetstream:
+  nats:
+    url: tls://nats.nats.svc:4222
+  tls:
+    enabled: true
+    secretName: nack-nats
+    settings:
+      client_cert: /etc/nats/certs/tls.crt
+      client_key: /etc/nats/certs/tls.key
+      client_ca: /etc/nats-ca/ca.crt
+  # controller-runtime mode; the only one with health probes.
+  controlLoop: true
+
+useLegacyNames: false
+
+additionalVolumes:
+  - name: homelab-ca
+    configMap:
+      name: homelab-ca
+additionalVolumeMounts:
+  - name: homelab-ca
+    mountPath: /etc/nats-ca
+    readOnly: true
+
+podAnnotations:
+  # The controller reads its client cert once, at start.
+  secret.reloader.stakater.com/reload: nack-nats
+
+nodeSelector:
+  node-type: standard
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    memory: 128Mi
+
+containerSecurityContext:
+  runAsNonRoot: true
+  # The image sets no USER, so runAsNonRoot alone refuses to start it.
+  runAsUser: 65532
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]

@@ -1,0 +1,55 @@
+# Here, not in kubernetes/nack/, or root's dry-run of the HelmRelease wedges root.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nack
+
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: nack
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./kubernetes/nack
+  prune: true
+  wait: true
+  timeout: 5m
+  dependsOn:
+    - name: homelab-ca
+  sourceRef:
+    kind: GitRepository
+    name: infrastructure
+  # So a dependsOn on nack waits for the Stream CRDs, not just this directory.
+  healthChecks:
+    - apiVersion: helm.toolkit.fluxcd.io/v2
+      kind: HelmRelease
+      name: nack
+      namespace: nack
+
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: nack
+  namespace: nack
+spec:
+  interval: 30m
+  releaseName: nack
+  chart:
+    spec:
+      chart: nack
+      version: "0.35.0"
+      sourceRef:
+        kind: HelmRepository
+        name: nats
+        namespace: flux-system
+  # The chart ships CRDs in crds/, which Helm alone never upgrades.
+  install:
+    crds: CreateReplace
+  upgrade:
+    crds: CreateReplace
+  valuesFrom:
+    - kind: ConfigMap
+      name: nack-values
