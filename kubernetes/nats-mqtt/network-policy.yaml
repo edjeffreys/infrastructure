@@ -84,6 +84,8 @@ spec:
         - ports:
             - port: "1883"
               protocol: TCP
+            - port: "8883"
+              protocol: TCP
 
 ---
 apiVersion: cilium.io/v2

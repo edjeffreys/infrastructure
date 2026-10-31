@@ -88,6 +88,15 @@
       ],
       "datasourceTemplate": "docker",
       "versioningTemplate": "docker"
+    },
+    {
+      "description": "ghostunnel sidecar pinned inside nats-mqtt-values.yaml, which the kubernetes manager cannot read: Helm values have no apiVersion/kind. Matches the version only, so the -distroless suffix is kept.",
+      "fileMatch": ["^kubernetes/nats-mqtt/nats-mqtt-values\\.yaml$"],
+      "matchStrings": [
+        "image:\\s*(?<depName>ghostunnel/ghostunnel):(?<currentValue>v[\\d.]+)-distroless"
+      ],
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "semver"
     }
   ],
   "packageRules": [

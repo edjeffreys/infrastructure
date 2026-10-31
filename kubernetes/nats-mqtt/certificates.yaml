@@ -57,3 +57,19 @@ spec:
   commonName: nats-box-sys.nats-mqtt
   usages:
     - client auth
+
+---
+# Publicly trusted, so Shellies and HA verify 8883 with their built-in CA
+# bundles — nothing to upload to any device. homelab-ca stays for mTLS.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: mqtt-public
+  namespace: nats-mqtt
+spec:
+  secretName: mqtt-public
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt
+  dnsNames:
+    - mqtt.skaal.dev

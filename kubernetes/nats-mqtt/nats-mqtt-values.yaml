@@ -120,6 +120,40 @@ podTemplate:
     - op: add
       path: /spec/volumes/-
       value: {name: nats-leaf, secret: {secretName: nats-mqtt-leaf}}
+    - op: add
+      path: /spec/volumes/-
+      value: {name: mqtt-public, secret: {secretName: mqtt-public}}
+    # TLS beside 1883, not instead: nats-server has one MQTT listener and the Glow may lack TLS.
+    - op: add
+      path: /spec/containers/-
+      value:
+        name: ghostunnel
+        image: ghostunnel/ghostunnel:v1.11.5-distroless
+        args:
+          - server
+          - --listen=0.0.0.0:8883
+          - --target=127.0.0.1:1883
+          - --cert=/etc/mqtt-public/tls.crt
+          - --key=/etc/mqtt-public/tls.key
+          - --disable-authentication
+          # Picks up cert-manager's Let's Encrypt renewals without a restart.
+          - --timed-reload=1h
+          - --status=0.0.0.0:6060
+        ports:
+          - {name: mqtts, containerPort: 8883, protocol: TCP}
+        readinessProbe:
+          httpGet: {path: /_status, port: 6060}
+        resources:
+          requests: {cpu: 5m, memory: 16Mi}
+          limits: {memory: 64Mi}
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 65532
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities: {drop: [ALL]}
+        volumeMounts:
+          - {name: mqtt-public, mountPath: /etc/mqtt-public, readOnly: true}
 
 promExporter:
   enabled: true

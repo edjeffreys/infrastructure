@@ -5,10 +5,11 @@ JetStream, joined to the hub (`kubernetes/nats/`) over mTLS. Shellies, the Glow
 display and Home Assistant connect here; in-cluster consumers stay on the hub.
 
 ```
-devices / HA ──MQTT 3.1.1, plaintext──▶ 10.0.0.211:1883 ──▶ nats-mqtt (leaf, ×3)
-                                                                │ leafnode, mTLS
-                                                                ▼
-                                                      nats (hub, ×3) ◀── in-cluster clients
+devices / HA ──MQTT 3.1.1 over TLS──▶ mqtt.skaal.dev:8883 ─┐
+Glow (no TLS?) ──MQTT 3.1.1, plaintext──▶ 10.0.0.211:1883 ─┴─▶ nats-mqtt (leaf, ×3)
+                                                                   │ leafnode, mTLS
+                                                                   ▼
+                                                         nats (hub, ×3) ◀── in-cluster clients
 ```
 
 ## Why a leaf, and why it is the only thing on a VIP
@@ -69,11 +70,44 @@ Reloader restarts the StatefulSet when the item changes.
 
 ## Exposure
 
-`10.0.0.211:1883`, announced from the control-plane nodes by the
-`nats-mqtt` `CiliumL2AnnouncementPolicy` (Traefik's is separate). Cilium SNATs
-at the announcing node, so pods see a node IP, never the device: **source
-filtering happens at the router** — allow the IoT VLAN and HA to
-`10.0.0.211` TCP 1883, nothing else.
+`10.0.0.211`, announced from the control-plane nodes by the `nats-mqtt`
+`CiliumL2AnnouncementPolicy` (Traefik's is separate). Cilium SNATs at the
+announcing node, so pods see a node IP, never the device: **source filtering
+happens at the router** — allow the IoT VLAN and HA to `10.0.0.211` TCP 1883
+and 8883, nothing else.
+
+| Port | What | Use for |
+|---|---|---|
+| **8883** | TLS, Let's Encrypt cert for **`mqtt.skaal.dev`** | everything that can do TLS — the default |
+| 1883 | plaintext | only clients that cannot do TLS |
+
+### TLS on 8883, with nothing to distribute
+
+8883 presents a **publicly trusted** Let's Encrypt cert (`mqtt-public`, issued
+by the existing `letsencrypt` ClusterIssuer over Cloudflare DNS-01, which works
+for a LAN-only name). Clients verify it with the CA bundle they already ship —
+no CA upload to any device:
+
+- **Shelly Gen2/Gen3**: MQTT → connection type **Default TLS**, server
+  `mqtt.skaal.dev:8883`.
+- **Home Assistant**: broker `mqtt.skaal.dev`, port `8883`, broker certificate
+  validation **Auto**.
+
+Connect by **name**, not IP — the cert only covers `mqtt.skaal.dev`, so
+`10.0.0.211:8883` fails verification. The name needs its own Cloudflare A record
+(DNS only, not proxied) to `10.0.0.211`; without it the `*.skaal.dev` wildcard
+sends it to Traefik on `.210`.
+
+nats-server has a single MQTT listener, so TLS cannot sit beside plaintext in
+the server itself. A **ghostunnel** sidecar in each leaf pod terminates TLS on
+8883 and forwards to `127.0.0.1:1883`, re-reading the cert hourly so renewals
+need no restart. Passwords and per-user permissions are unchanged — ghostunnel
+only does server-side TLS. Renovate tracks its image through a regex manager,
+since it cannot see images in Helm values.
+
+Let's Encrypt cannot do the rest: it stopped issuing client-auth certificates in
+2025, so `homelab-ca` remains for every mTLS identity. Once nothing needs 1883,
+it can be dropped from the Service and the router rule.
 
 ## Checking it
 
