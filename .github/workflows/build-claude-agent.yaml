@@ -57,3 +57,10 @@ jobs:
             --opt filename=Dockerfile \
             --output "type=image,\"name=${IMAGE}:latest,${IMAGE}:${SHA_TAG}\",push=true" \
             --progress plain
+
+          touch "${RUNNER_TEMP}/build-complete"
+
+      # A build cut off mid-step has been reported as a successful step, with
+      # nothing pushed. Only a script that reached its last line leaves this.
+      - name: Check the build ran to completion
+        run: test -f "${RUNNER_TEMP}/build-complete"
