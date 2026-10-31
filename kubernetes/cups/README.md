@@ -75,8 +75,13 @@ PPD means checking both there; iOS silently ignores a printer whose `URF=` it
 cannot use.
 
 `Browsing No` in `cupsd.conf` is deliberate: there is no avahi daemon in the
-pod, so `printer-dns-sd-name` stays empty. That was why the AirPrint profile
-used before DNS-SD showed the printer with no name.
+pod. Upstream cupsd only fills `printer-dns-sd-name` after an avahi
+registration, and iOS takes the printer's display name from that attribute,
+not from the DNS-SD record — so it showed the printer with a blank name, both
+via the old AirPrint profile and via DNS-SD.
+`images/cups/patches/printer-dns-sd-name.patch` makes cupsd fall back to the
+queue's `Info` instead. The build applies it with `patch --forward`, so a CUPS
+release that moves that code fails the build rather than quietly losing it.
 
 ## Exposure
 
@@ -114,7 +119,8 @@ so it is only cleared by a pod restart).
 
 `images/cups/` builds upstream CUPS from the OpenPrinting release tarball
 (`CUPS_VERSION`, tracked by Renovate) over Debian's `cups-filters`,
-Ghostscript and Pillow (for `selphy-bleed`). Debian only ships CUPS 2.4.10 with backported fixes; its libcups
+Ghostscript and Pillow (for `selphy-bleed`), with the patches in
+`images/cups/patches/` applied to the source. Debian only ships CUPS 2.4.10 with backported fixes; its libcups
 is overwritten by upstream's, which is ABI-compatible within 2.4. Built by
 `.github/workflows/build-cups.yaml` on the in-cluster buildkitd and pushed to
 `ghcr.io/edjeffreys/cups`. The ConfigMap is copied into an `emptyDir` at

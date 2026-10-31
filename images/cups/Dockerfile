@@ -5,13 +5,15 @@ ARG CUPS_VERSION=2.4.20
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-      build-essential ca-certificates curl pkg-config \
+      build-essential ca-certificates curl patch pkg-config \
       libavahi-client-dev libgnutls28-dev zlib1g-dev \
  && rm -rf /var/lib/apt/lists/*
 
+COPY patches/ /patches/
 WORKDIR /src
 RUN curl -fsSL "https://github.com/OpenPrinting/cups/releases/download/v${CUPS_VERSION}/cups-${CUPS_VERSION}-source.tar.gz" \
       | tar -xz --strip-components=1 \
+ && for p in /patches/*.patch; do patch -p1 --forward < "$p"; done \
  && ./configure \
       --prefix=/usr --sysconfdir=/etc --localstatedir=/var \
       --libdir="/usr/lib/$(gcc -dumpmachine)" \
