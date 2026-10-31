@@ -1,0 +1,14 @@
+# Labels-only patch: a volumeClaimTemplate change never reaches an existing PVC.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: alertmanager-kube-prometheus-stack-alertmanager-db-alertmanager-kube-prometheus-stack-alertmanager-0
+  namespace: monitoring
+  annotations:
+    kustomize.toolkit.fluxcd.io/ssa: merge
+    # A prune would delete the PVC, not just drop the labels.
+    kustomize.toolkit.fluxcd.io/prune: disabled
+  labels:
+    recurring-job.longhorn.io/source: enabled
+    recurring-job-group.longhorn.io/default: enabled
+    recurring-job-group.longhorn.io/backup: enabled

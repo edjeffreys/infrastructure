@@ -9,6 +9,7 @@ namespace: monitoring
 resources:
   - alertmanager-config.yaml
   - alertmanager-ingress.yaml
+  - alertmanager-pvc.yaml
   - flux-dashboards.yaml
   - flux-monitoring.yaml
   - grafana-ingress.yaml

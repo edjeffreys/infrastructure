@@ -3,6 +3,11 @@ kind: PersistentVolumeClaim
 metadata:
   name: plex-config
   namespace: plex
+  # Longhorn mirrors these onto the volume, so dropping default stops its trim.
+  labels:
+    recurring-job.longhorn.io/source: enabled
+    recurring-job-group.longhorn.io/default: enabled
+    recurring-job-group.longhorn.io/backup: enabled
 spec:
   accessModes:
     - ReadWriteOnce

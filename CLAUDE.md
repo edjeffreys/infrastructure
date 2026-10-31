@@ -374,8 +374,10 @@ mealie, paperless and grafana all support it and are still on SQLite.
 actual-budget is permanent, not pending: its sync protocol makes each budget a
 SQLite file the server ships to clients whole, so there is nothing to migrate.
 
-**Backups**: none yet beyond Longhorn snapshots. A logical `pg_dump` CronJob to the `nfs`
-storage class is the outstanding action.
+**Backups**: Longhorn `backup-daily` copies both instance volumes of each Cluster to TrueNAS
+(crash-consistent, no PITR). A volume opts in through PVC labels, and **must keep the
+`default` group label too**, or it drops out of the daily trim. See `kubernetes/longhorn/README.md`.
+A logical `pg_dump` CronJob is still worth having for portable restores.
 
 ---
 

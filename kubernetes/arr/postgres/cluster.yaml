@@ -31,6 +31,14 @@ spec:
 
   imageName: ghcr.io/cloudnative-pg/postgresql:18.6-standard-trixie
 
+  # Labels both instances' PVCs: instance names change on rebuild, so there is
+  # no stable one to pick. See kubernetes/longhorn/README.md.
+  inheritedMetadata:
+    labels:
+      recurring-job.longhorn.io/source: enabled
+      recurring-job-group.longhorn.io/default: enabled
+      recurring-job-group.longhorn.io/backup: enabled
+
   # Pinned to the PIA pool alongside its only clients. NoExecute only — per
   # CLAUDE.md, NoSchedule is redundant on these nodes and must not be added.
   affinity:

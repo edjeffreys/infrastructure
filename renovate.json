@@ -148,12 +148,6 @@
       "versioning": "docker"
     },
     {
-      "description": "Plex runs the plex-postgresql shim image rather than plexinc/pms-docker directly (see kubernetes/plex/deployment.yaml). Its tags track the shim's version, not Plex's, so Plex updates arrive only when that project rebuilds.",
-      "matchDatasources": ["docker"],
-      "matchPackageNames": ["ghcr.io/cgnl/plex-postgresql-plexinc"],
-      "versioning": "semver"
-    },
-    {
       "description": "Images built in this repo — images/<name>/Dockerfile, built by build-<name>.yaml and pushed as :latest (plus :sha-<short-sha>) — so there is no upstream version for Renovate to track here. They also must not be caught by the pinDigests rule below: digest updates are disabled repo-wide, so a pinned digest would freeze the workload at whatever it was first pinned to. The Dockerfiles' own ARG pins are managed by the `# renovate:` regex manager.",
       "matchPackageNames": ["ghcr.io/edjeffreys/claude-agent", "ghcr.io/edjeffreys/cups"],
       "enabled": false
