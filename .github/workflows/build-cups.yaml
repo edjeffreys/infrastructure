@@ -11,6 +11,9 @@ on:
     paths:
       - images/cups/**
       - .github/workflows/build-cups.yaml
+  # Debian packages are unpinned, so only a rebuild picks up their fixes.
+  schedule:
+    - cron: "0 4 * * 1"
   workflow_dispatch:
 
 permissions:
@@ -52,7 +55,9 @@ jobs:
           buildctl \
             --addr tcp://buildkitd.buildkit:1234 \
             build \
+            --no-cache \
             --frontend dockerfile.v0 \
+            --opt image-resolve-mode=pull \
             --opt "context=https://github.com/${GITHUB_REPOSITORY}.git#${GITHUB_SHA}:images/cups" \
             --opt filename=Dockerfile \
             --output "type=image,\"name=${IMAGE}:latest,${IMAGE}:${SHA_TAG}\",push=true" \

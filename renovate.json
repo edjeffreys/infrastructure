@@ -10,6 +10,14 @@
   },
   "regexManagers": [
     {
+      "description": "`# renovate:` annotations on Dockerfile ARGs under images/. Renovate's dockerfile manager reads FROM lines only, so these pins were comments addressed to a manager that did not exist: claude-agent's kubectl, Claude Code, gh and MCP server versions went unmanaged from the start, while the rule for that image claimed they were managed.",
+      "fileMatch": ["^images/[^/]+/Dockerfile$"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>\\S+)(?: extractVersion=(?<extractVersion>\\S+))?\\s+ARG [A-Z0-9_]+=(?<currentValue>\\S+)"
+      ],
+      "extractVersionTemplate": "{{#if extractVersion}}{{{extractVersion}}}{{else}}^(?<version>.+)${{/if}}"
+    },
+    {
       "description": "Runner image for the ARC scale set. The kubernetes manager only reads manifest-shaped files, and a Helm values file has no apiVersion/kind, so this image was invisible to Renovate and silently went five releases stale. GitHub then deprecated it, the runner exited 7, and ARC tore the scale set down in a loop.",
       "fileMatch": ["^kubernetes/arc-runners/runner-scale-set-values\\.yaml$"],
       "matchStrings": [
@@ -146,8 +154,8 @@
       "versioning": "semver"
     },
     {
-      "description": "claude-agent is built from images/claude-agent/Dockerfile by build-claude-agent.yaml and pushed as :latest (plus :sha-<short-sha>), so there is no upstream version for Renovate to track here. It also must not be caught by the pinDigests rule below: digest updates are disabled repo-wide, so a pinned digest would freeze the agent at whatever it was first pinned to. The Dockerfile's own ARG pins are still managed.",
-      "matchPackageNames": ["ghcr.io/edjeffreys/claude-agent"],
+      "description": "Images built in this repo — images/<name>/Dockerfile, built by build-<name>.yaml and pushed as :latest (plus :sha-<short-sha>) — so there is no upstream version for Renovate to track here. They also must not be caught by the pinDigests rule below: digest updates are disabled repo-wide, so a pinned digest would freeze the workload at whatever it was first pinned to. The Dockerfiles' own ARG pins are managed by the `# renovate:` regex manager.",
+      "matchPackageNames": ["ghcr.io/edjeffreys/claude-agent", "ghcr.io/edjeffreys/cups"],
       "enabled": false
     },
     {
