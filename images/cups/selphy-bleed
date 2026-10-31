@@ -3,8 +3,9 @@
 
 Borderless, the Selphy enlarges the page and trims a fixed amount off each
 edge. Each postcard page is scaled to cover only the part that survives, with
-the trimmed margin filled by stretched edge pixels. kubernetes/cups/README.md
-has the measurements.
+the trimmed margin filled by stretched edge pixels. Every page also gets the
+configured brightness and vibrance. kubernetes/cups/README.md has the
+measurements.
 """
 import os
 import subprocess
@@ -12,6 +13,7 @@ import sys
 import tempfile
 import zlib
 
+import numpy as np
 from PIL import Image
 
 DPI = 300
@@ -23,15 +25,30 @@ def log(msg):
     print(f"INFO: selphy-bleed: {msg}", file=sys.stderr, flush=True)
 
 
-def load_trim():
-    trim = {}
+def load_conf():
+    conf = {}
     with open(CONF) as f:
         for line in f:
             line = line.split("#", 1)[0].strip()
             if line:
                 key, value = line.split("=", 1)
-                trim[key.strip()] = float(value)
-    return {k: round(trim[k] * DPI / 25.4) for k in ("top", "bottom", "left", "right")}
+                conf[key.strip()] = float(value)
+    trim = {k: round(conf[k] * DPI / 25.4) for k in ("top", "bottom", "left", "right")}
+    return trim, conf.get("brightness", 1.0), conf.get("vibrance", 0.0)
+
+
+def enhance(page, brightness, vibrance):
+    if brightness == 1.0 and vibrance == 0.0:
+        return page
+    a = np.asarray(page, dtype=np.float32) / 255
+    # A gamma lift rather than a multiply, so highlights do not clip.
+    a = a ** (1 / brightness)
+    if vibrance:
+        hi, lo = a.max(axis=2, keepdims=True), a.min(axis=2, keepdims=True)
+        sat = (hi - lo) / np.maximum(hi, 1e-6)
+        luma = (a @ np.array([0.2126, 0.7152, 0.0722], dtype=np.float32))[..., None]
+        a = luma + (a - luma) * (1 + vibrance * (1 - sat))
+    return Image.fromarray((np.clip(a, 0, 1) * 255 + 0.5).astype(np.uint8), "RGB")
 
 
 def compensate(page, trim):
@@ -107,7 +124,7 @@ def main():
         print("Usage: selphy-bleed job-id user title copies options [file]", file=sys.stderr)
         return 1
 
-    trim = load_trim()
+    trim, brightness, vibrance = load_conf()
     with tempfile.TemporaryDirectory() as tmp:
         src = sys.argv[6] if len(sys.argv) == 7 else os.path.join(tmp, "in.pdf")
         if len(sys.argv) == 6:
@@ -118,14 +135,14 @@ def main():
         pages = []
         postcards = True
         for name in sorted(p for p in os.listdir(tmp) if p.startswith("p-")):
-            page = Image.open(os.path.join(tmp, name)).convert("RGB")
+            page = enhance(Image.open(os.path.join(tmp, name)).convert("RGB"), brightness, vibrance)
             if all(abs(a - b) <= 2 for a, b in zip(page.size, POSTCARD_PX)):
                 page = compensate(page, trim)
             else:
                 postcards = False
                 log(f"{name}: {page.size[0]}x{page.size[1]} is not a postcard, left as is")
             pages.append(page)
-        log(f"{len(pages)} page(s), trim {trim} px")
+        log(f"{len(pages)} page(s), trim {trim} px, brightness {brightness}, vibrance {vibrance}")
 
         out = os.path.join(tmp, "out.pdf")
         write_pdf(pages, out)

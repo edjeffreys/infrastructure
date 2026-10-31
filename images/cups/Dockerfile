@@ -30,7 +30,7 @@ FROM debian:trixie-slim
 # the COPY below replaces it with upstream's, which keeps the same ABI.
 RUN apt-get update \
  && apt-get upgrade -y \
- && apt-get install -y --no-install-recommends cups-filters ghostscript libavahi-client3 python3-pil \
+ && apt-get install -y --no-install-recommends cups-filters ghostscript libavahi-client3 python3-numpy python3-pil \
  && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /out/ /

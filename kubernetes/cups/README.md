@@ -60,6 +60,15 @@ photo's top and bottom edges (landscape), where the surviving window's 1.496
 ratio is fractionally wider than the page's 1.48; the two ends lose nothing. Card and L-size pages pass through unchanged;
 only the postcard was measured.
 
+`selphy-bleed.conf` also sets two tone adjustments, applied to every page:
+
+- `brightness` — a gamma lift (`1.0` is off). `1.05` raises mid-grey by about
+  3% without clipping highlights, which a multiply would on a dye-sub print.
+- `vibrance` — extra saturation for muted colours, tapering to none for
+  fully saturated ones (`0` is off). `0.15` gives low-saturation colours up to
+  15% more, so skin and dull colours gain some life without strong reds
+  going garish.
+
 The JPEG passthrough the generated PPD had is gone, so a JPEG sent from a Mac
 is compensated too. `image/urf` still passes straight to the printer — AirPrint
 needs it advertised — and would bypass the filter, but iOS sends PDF.
@@ -127,7 +136,7 @@ so it is only cleared by a pod restart).
 
 `images/cups/` builds upstream CUPS from the OpenPrinting release tarball
 (`CUPS_VERSION`, tracked by Renovate) over Debian's `cups-filters`,
-Ghostscript and Pillow (for `selphy-bleed`), with the patches in
+Ghostscript, Pillow and NumPy (for `selphy-bleed`), with the patches in
 `images/cups/patches/` applied to the source. Debian only ships CUPS 2.4.10 with backported fixes; its libcups
 is overwritten by upstream's, which is ABI-compatible within 2.4. Built by
 `.github/workflows/build-cups.yaml` on the in-cluster buildkitd and pushed to
