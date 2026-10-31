@@ -20,9 +20,10 @@ containerMode:
   type: "kubernetes"
   # longhorn, not nfs: ARC's Kubernetes-mode hook pins the job-container pod
   # to the runner pod's node, so ReadWriteOnce is safe.
+  # Per-job scratch, so one replica.
   kubernetesModeWorkVolumeClaim:
     accessModes: ["ReadWriteOnce"]
-    storageClassName: "longhorn"
+    storageClassName: "longhorn-single"
     resources:
       requests:
         storage: 5Gi
