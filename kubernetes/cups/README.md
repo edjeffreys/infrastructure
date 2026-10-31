@@ -35,8 +35,8 @@ consistent from sheet to sheet:
 |---|---|---|
 | left | 4 mm | top |
 | right | 2.5 mm | bottom |
-| top | 2.25 mm | right |
-| bottom | 3.75 mm | left |
+| top | 2.85 mm | right |
+| bottom | 3.15 mm | left |
 
 The third column is the frame `selphy-bleed.conf` uses. pdftopdf turns a
 landscape page 90° clockwise onto the portrait paper, so the photo's frame
@@ -47,10 +47,13 @@ active then still lost 2 mm on that edge, so it is 2.5 mm; the other three
 came out exact. Checking the filter's own output is the more reliable
 measurement, because the tear-off tab makes the raw edge hard to read.
 
-The top and bottom were first set at 3 mm each. A chart print then kept its
-0 mm line on the top edge but lost about 1.5 mm on the bottom, so 0.75 mm
-moved from one to the other: same total, so the same scale, with the
-unavoidable cover-fit loss split evenly between the photo's two long edges.
+The top and bottom (`right` and `left` in the config) are tuned so the
+unavoidable cover-fit loss splits evenly between the photo's two long edges;
+moving trim from one to the other keeps the total, so the scale is
+unchanged. At 3.75 / 2.25 mm a chart lost about 0.5 mm on `left` and 1.7 mm
+on `right`, so they are 3.15 / 2.85 for roughly 1.1 mm each. Read a chart
+photo taken with the red-tab end at the top: that is the config's frame, and
+the earlier 3 / 3 reading was taken upside down and came out about 1 mm off.
 
 `images/cups/selphy-bleed` (`application/vnd.cups-pdf` → `image/pwg-raster`,
 after pdftopdf) scales each postcard page to cover just the part of the card
