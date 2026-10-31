@@ -1,0 +1,45 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: trust-manager
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./kubernetes/trust-manager
+  prune: true
+  wait: true
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: infrastructure
+  # So `homelab-ca`'s dependsOn waits for the chart, not just this policy.
+  healthChecks:
+    - apiVersion: helm.toolkit.fluxcd.io/v2
+      kind: HelmRelease
+      name: trust-manager
+      namespace: cert-manager
+
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: trust-manager
+  namespace: cert-manager
+spec:
+  interval: 30m
+  releaseName: trust-manager
+  # Its webhook cert comes from a cert-manager Issuer.
+  dependsOn:
+    - name: cert-manager
+      namespace: cert-manager
+  chart:
+    spec:
+      chart: trust-manager
+      version: "v0.26.0"
+      sourceRef:
+        kind: HelmRepository
+        name: jetstack
+        namespace: flux-system
+  valuesFrom:
+    - kind: ConfigMap
+      name: trust-manager-values

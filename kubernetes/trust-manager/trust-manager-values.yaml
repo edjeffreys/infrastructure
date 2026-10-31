@@ -1,0 +1,3 @@
+# Bundles carry only the homelab root, so the public-CA package is unused.
+defaultPackage:
+  enabled: false

@@ -291,6 +291,15 @@ only takes `spec.itemPath` and always produces `Opaque`:
 op inject -i kubernetes/flux-system/flux-git-auth-secret.yaml | kubectl apply -f -
 ```
 
+### Private PKI (`homelab-ca`)
+
+ClusterIssuer `homelab-ca` signs in-cluster mTLS certs; trust-manager copies the
+root into a `homelab-ca` ConfigMap (key `ca.crt`) in every namespace. The root
+key is offline in 1Password and never in the cluster. Verify peers against that
+ConfigMap, not the issued Secret's `ca.crt` (the intermediate). Creation steps
+and the reason `trust-manager` and `homelab-ca` are separate Flux apps — a
+webhook deadlock — are in `kubernetes/homelab-ca/README.md`.
+
 ---
 
 ## Storage

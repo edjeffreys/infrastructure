@@ -1,0 +1,19 @@
+# Egress comes from kubernetes/cert-manager/network-policy.yaml. Never add a
+# Bundle to this Kustomization — see kubernetes/homelab-ca/README.md.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-trust-manager-webhook-ingress
+  namespace: cert-manager
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:app.kubernetes.io/name: trust-manager
+  ingress:
+    - fromEntities:
+        - kube-apiserver
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
