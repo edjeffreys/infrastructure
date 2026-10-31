@@ -70,6 +70,26 @@ spec:
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
+  name: allow-leafnode-ingress
+  namespace: nats
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: nats
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: nats-mqtt
+            app.kubernetes.io/component: nats
+      toPorts:
+        - ports:
+            - port: "7422"
+              protocol: TCP
+
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
   name: allow-nats-box-egress
   namespace: nats
 spec:

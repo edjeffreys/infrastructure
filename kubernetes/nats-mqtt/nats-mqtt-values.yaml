@@ -1,0 +1,137 @@
+tlsCA:
+  enabled: true
+  configMapName: homelab-ca
+  key: ca.crt
+
+config:
+  cluster:
+    enabled: true
+    replicas: 3
+    routeURLs:
+      useFQDN: true
+    tls:
+      enabled: true
+      secretName: nats-mqtt-server
+      merge:
+        verify: true
+
+  jetstream:
+    enabled: true
+    fileStore:
+      pvc:
+        size: 256Mi
+        storageClassName: longhorn-single
+      # Below the PVC, so JetStream hits its own limit before ext4 is full.
+      maxSize: 200Mi
+    merge:
+      # A distinct domain, or this JetStream would merge with the hub's over the leaf link.
+      domain: mqtt
+
+  nats:
+    tls:
+      enabled: true
+      secretName: nats-mqtt-server
+      merge:
+        verify_and_map: true
+
+  # Plaintext: the Shelly Gen1 H&Ts cannot do TLS, and there is only one MQTT listener.
+  mqtt:
+    enabled: true
+    merge:
+      stream_replicas: 3
+
+  merge:
+    system_account: SYS
+    leafnodes:
+      remotes:
+        - url: tls://nats.nats.svc:7422
+          account: APP
+          tls:
+            ca_file: /etc/nats-ca-cert/ca.crt
+            cert_file: /etc/nats-leaf/tls.crt
+            key_file: /etc/nats-leaf/tls.key
+    accounts:
+      APP:
+        jetstream: enabled
+        users:
+          - user: shelly
+            password: << $MQTT_SHELLY_PASSWORD >>
+            allowed_connection_types: ["MQTT"]
+            permissions:
+              publish: &shelly ["shellies.>"]
+              subscribe: *shelly
+          - user: glow
+            password: << $MQTT_GLOW_PASSWORD >>
+            allowed_connection_types: ["MQTT"]
+            permissions:
+              publish: &glow ["glow.>"]
+              subscribe: *glow
+          - user: homeassistant
+            password: << $MQTT_HOMEASSISTANT_PASSWORD >>
+            allowed_connection_types: ["MQTT"]
+            permissions:
+              publish: &ha ["shellies.>", "glow.>", "homeassistant.>"]
+              subscribe: *ha
+      SYS:
+        users:
+          - user: "CN=nats-box-sys.nats-mqtt"
+
+container:
+  env:
+    MQTT_SHELLY_PASSWORD:
+      valueFrom:
+        secretKeyRef: {name: mqtt-users, key: shelly}
+    MQTT_GLOW_PASSWORD:
+      valueFrom:
+        secretKeyRef: {name: mqtt-users, key: glow}
+    MQTT_HOMEASSISTANT_PASSWORD:
+      valueFrom:
+        secretKeyRef: {name: mqtt-users, key: homeassistant}
+  merge:
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        memory: 512Mi
+  patch:
+    - op: add
+      path: /volumeMounts/-
+      value: {name: nats-leaf, mountPath: /etc/nats-leaf, readOnly: true}
+
+statefulSet:
+  merge:
+    metadata:
+      annotations:
+        # Passwords are read from env at start, so a 1Password change needs a restart.
+        secret.reloader.stakater.com/reload: mqtt-users
+
+podTemplate:
+  topologySpreadConstraints:
+    kubernetes.io/hostname:
+      maxSkew: 1
+      whenUnsatisfiable: DoNotSchedule
+  merge:
+    spec:
+      nodeSelector:
+        node-type: standard
+  patch:
+    - op: add
+      path: /spec/volumes/-
+      value: {name: nats-leaf, secret: {secretName: nats-mqtt-leaf}}
+
+promExporter:
+  enabled: true
+  podMonitor:
+    enabled: true
+
+natsBox:
+  contexts:
+    default:
+      tls:
+        secretName: nats-box-sys
+  podTemplate:
+    merge:
+      spec:
+        nodeSelector:
+          node-type: standard

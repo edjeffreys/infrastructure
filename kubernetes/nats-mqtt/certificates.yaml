@@ -1,0 +1,59 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: nats-mqtt-server
+  namespace: nats-mqtt
+spec:
+  secretName: nats-mqtt-server
+  duration: 2160h
+  renewBefore: 720h
+  issuerRef:
+    kind: ClusterIssuer
+    name: homelab-ca
+  dnsNames:
+    - nats-mqtt
+    - nats-mqtt.nats-mqtt
+    - nats-mqtt.nats-mqtt.svc
+    - nats-mqtt.nats-mqtt.svc.cluster.local
+    - "*.nats-mqtt-headless"
+    - "*.nats-mqtt-headless.nats-mqtt"
+    - "*.nats-mqtt-headless.nats-mqtt.svc"
+    - "*.nats-mqtt-headless.nats-mqtt.svc.cluster.local"
+  usages:
+    - server auth
+    - client auth
+
+---
+# Identity the hub maps to its leaf user; see kubernetes/nats/nats-values.yaml.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: nats-mqtt-leaf
+  namespace: nats-mqtt
+spec:
+  secretName: nats-mqtt-leaf
+  duration: 2160h
+  renewBefore: 720h
+  issuerRef:
+    kind: ClusterIssuer
+    name: homelab-ca
+  commonName: nats-mqtt-leaf.nats-mqtt
+  usages:
+    - client auth
+
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: nats-box-sys
+  namespace: nats-mqtt
+spec:
+  secretName: nats-box-sys
+  duration: 2160h
+  renewBefore: 720h
+  issuerRef:
+    kind: ClusterIssuer
+    name: homelab-ca
+  commonName: nats-box-sys.nats-mqtt
+  usages:
+    - client auth

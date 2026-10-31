@@ -30,6 +30,14 @@ config:
       merge:
         verify_and_map: true
 
+  leafnodes:
+    enabled: true
+    tls:
+      enabled: true
+      secretName: nats-server
+      merge:
+        verify_and_map: true
+
   merge:
     system_account: SYS
     accounts:
@@ -37,6 +45,12 @@ config:
         jetstream: enabled
         users:
           - user: "CN=nats-box.nats"
+          # The LAN-facing MQTT tier: everything it can reach on the hub is listed here.
+          - user: "CN=nats-mqtt-leaf.nats-mqtt"
+            allowed_connection_types: ["LEAFNODE"]
+            permissions:
+              publish: &mqtt-subjects ["shellies.>", "glow.>", "homeassistant.>"]
+              subscribe: *mqtt-subjects
       SYS:
         users:
           - user: "CN=nats-box-sys.nats"
