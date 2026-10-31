@@ -1,0 +1,13 @@
+$ORIGIN lan.skaal.lan.
+$TTL 300
+@                          IN SOA dns-sd.lan.skaal.lan. hostmaster.lan.skaal.lan. 1 3600 600 86400 300
+@                          IN NS  dns-sd.lan.skaal.lan.
+
+b._dns-sd._udp             IN PTR @
+lb._dns-sd._udp            IN PTR @
+
+_ipp._tcp                  IN PTR Selphy._ipp._tcp
+_universal._sub._ipp._tcp  IN PTR Selphy._ipp._tcp
+
+Selphy._ipp._tcp           IN SRV 0 0 631 cups.lan.skaal.lan.
+Selphy._ipp._tcp           IN TXT "txtvers=1" "qtotal=1" "rp=printers/Selphy" "ty=Canon SELPHY CP1500" "product=(SELPHY CP1500)" "pdl=application/pdf,image/jpeg,image/urf,image/pwg-raster" "URF=V1.4,CP1,W8,PQ3-4,SRGB24,RS300,FN3" "Color=T" "Duplex=F" "kind=photo"

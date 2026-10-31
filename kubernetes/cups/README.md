@@ -23,26 +23,27 @@ bordered size entries deleted, the four `*Default*` size lines pointed at
 `Postcard.Borderless`, and the macOS-only `*AP*` keys dropped. If the printer's firmware changes what it
 advertises, regenerate it the same way rather than editing sizes by hand.
 
-## Discovery: an AirPrint profile, not mDNS
+## Discovery: unicast DNS-SD, not mDNS
 
 iPhones normally find printers by mDNS, which a pod behind a Cilium VIP cannot
-send onto the LAN. Instead, `airprint.mobileconfig` tells iOS about the queue
-directly: `10.0.0.212:631`, resource path `printers/Selphy`. It works across
-VLANs and needs no reflector.
+send onto the LAN. Instead the queue is advertised in ordinary DNS, which iOS
+browses in its search domain: `kubernetes/dns-sd/` serves the PTR/SRV/TXT
+records, and UniFi forwards those names to it. The instance name in those
+records, `Selphy`, is what the print dialog shows. See
+`kubernetes/dns-sd/README.md`.
 
-Install it once per phone: AirDrop the file to the iPhone, then Settings →
-Profile Downloaded → Install. The printer then appears in every print dialog
-as **Selphy**. It is unsigned, so iOS labels it "Not Verified"; that is
-expected.
+The TXT record repeats what this queue advertises — `rp=printers/Selphy` and
+the `URF=` string from `urf-supported`. Renaming the queue or regenerating the
+PPD means checking both there; iOS silently ignores a printer whose `URF=` it
+cannot use.
 
 `Browsing No` in `cupsd.conf` is deliberate: there is no avahi daemon in the
-pod. A side effect is that `printer-dns-sd-name` is empty — cupsd only sets it
-after a successful avahi registration — and iOS appears to take a profile
-printer's display name from it, so the printer shows with no name.
+pod, so `printer-dns-sd-name` stays empty. That was why the AirPrint profile
+used before DNS-SD showed the printer with no name.
 
 ## Exposure
 
-`10.0.0.212` (IPv4 only — the profile names an address), announced from the
+`10.0.0.212` (IPv4 only — the SRV record's target has only an A record), announced from the
 control-plane nodes by the `cups` `CiliumL2AnnouncementPolicy`. Cilium SNATs
 at the announcing node, so cupsd sees a node IP, never the phone: **source
 filtering happens at the router** — allow the phones' VLAN to `10.0.0.212` on
