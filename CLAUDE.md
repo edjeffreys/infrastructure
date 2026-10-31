@@ -257,6 +257,10 @@ OCIRepository), `kustomize.toolkit.fluxcd.io/v1` (Kustomization),
   crash, and it logs nothing useful — the metrics are just absent. Do not copy
   upstream's `collectors: []` / `--custom-resource-state-only=true`: that would
   switch off every `kube_pod_*` series in the cluster.
+- **`kubectl rollout restart` restarts twice.** Flux strips the `restartedAt`
+  annotation on its next reconcile, which changes the pod template back and
+  rolls the Deployment again minutes later. To pick up a new `:latest`, delete
+  the pod instead. Seen on `cups`, where the second restart wiped the spool.
 - **Flux's own network policies are self-managed** (`flux/apps/flux-system.yaml`),
   deliberately unlike ArgoCD's own `kubernetes/argocd/network-policy.yaml`,
   which was referenced by no Application and drifted unreconciled from bootstrap
