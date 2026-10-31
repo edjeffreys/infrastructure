@@ -2,8 +2,8 @@
 set -euo pipefail
 
 HOST=${HA_HOST:-homeassistant}
-DIRS=(packages dashboards)
-RELOAD=(input_number input_boolean template statistics automation)
+DIRS=(packages dashboards custom_sentences)
+RELOAD=(input_number input_boolean template statistics automation intent_script conversation)
 restart=false
 [[ ${1:-} == --restart ]] && restart=true
 
@@ -15,7 +15,7 @@ while IFS= read -r f; do files+=("$f"); done < <(find "${DIRS[@]}" -type f -name
 COPYFILE_DISABLE=1 tar -cf - "${files[@]}" | ssh "$HOST" 'rm -rf /tmp/ha-deploy && mkdir -p /tmp/ha-deploy && tar -C /tmp/ha-deploy -xf -'
 
 local_sums=$(shasum -a 256 "${files[@]}")
-remote_sums=$(ssh "$HOST" 'cd /tmp/ha-deploy && find packages dashboards -type f | sort | xargs sha256sum')
+remote_sums=$(ssh "$HOST" 'cd /tmp/ha-deploy && find packages dashboards custom_sentences -type f | sort | xargs sha256sum')
 if [[ $local_sums != "$remote_sums" ]]; then
   echo "checksum mismatch after upload; nothing deployed" >&2
   exit 1
@@ -28,7 +28,7 @@ export SUPERVISOR_TOKEN=$(cat /run/s6/container_environment/SUPERVISOR_TOKEN)
 backup=/config/.deploy-backup/$(date +%Y%m%d-%H%M%S)
 mkdir -p "$backup"
 
-for d in packages dashboards; do
+for d in packages dashboards custom_sentences; do
   [[ -d /config/$d ]] && cp -a "/config/$d" "$backup/"
   rm -rf "/config/$d"
   cp -r "/tmp/ha-deploy/$d" "/config/$d"
@@ -36,7 +36,7 @@ done
 
 if ! ha core check; then
   echo "config check failed; restoring $backup" >&2
-  for d in packages dashboards; do
+  for d in packages dashboards custom_sentences; do
     rm -rf "/config/$d"
     [[ -d $backup/$d ]] && cp -a "$backup/$d" "/config/$d"
   done
