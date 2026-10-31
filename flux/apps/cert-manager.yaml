@@ -50,3 +50,8 @@ spec:
   # inline value rather than a valuesFrom reference.
   values:
     installCRDs: true
+    # The gateway overrides some *.skaal.dev names locally, which hides their
+    # _acme-challenge TXT from cluster DNS and stalls DNS-01 forever.
+    extraArgs:
+      - --dns01-recursive-nameservers-only
+      - --dns01-recursive-nameservers=1.1.1.1:53,1.0.0.1:53
