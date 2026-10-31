@@ -87,19 +87,23 @@ a device without a mapped cert gets `certificate required`. It is the only way
 onto the hub from outside the cluster; the hub is never on a LAN VIP.
 
 Two personal identities: `CN=ed.nats` (account `APP`) and `CN=ed-sys.nats`
-(system account). Pull them down once, and again after each renewal — they are
-90-day certs that cert-manager renews at 60 days, so the copies on the Mac go
-stale:
+(system account). They are 90-day certs that cert-manager rotates at 60 days,
+key included, so the Mac's copies in `~/.config/nats/homelab/` are kept current
+by `scripts/refresh-nats-mac-certs.sh`. Install it once:
 
 ```bash
-D=~/.config/nats/homelab; mkdir -p "$D"; chmod 700 "$D"
-kubectl -n nats get configmap homelab-ca -o jsonpath='{.data.ca\.crt}' > "$D/ca.crt"
-for s in ed-nats ed-sys-nats; do
-  kubectl -n nats get secret "$s" -o jsonpath='{.data.tls\.crt}' | base64 -d > "$D/$s.crt"
-  kubectl -n nats get secret "$s" -o jsonpath='{.data.tls\.key}' | base64 -d > "$D/$s.key"
-done
-chmod 600 "$D"/*.key
+scripts/refresh-nats-mac-certs.sh install
 ```
+
+That adds the launchd agent `dev.skaal.nats-certs`, which runs at login and
+daily at 09:15, pulls via your kubeconfig, and only replaces a pair once the
+cert and key match and the cert is unexpired — off the tailnet it just fails and
+leaves the old pair. Log: `~/.config/nats/homelab/refresh.log`. It runs the
+script from this checkout, so re-run `install` if the repo moves. Run the script
+without arguments to pull immediately.
+
+Short certs are deliberate: expiry bounds a stolen laptop key, while revocation
+is removing the user line from `nats-values.yaml`.
 
 ```bash
 nats context save homelab --server tls://nats.tail5f17e.ts.net:4222 \
