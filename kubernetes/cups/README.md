@@ -34,21 +34,26 @@ consistent from sheet to sheet:
 | Edge, landscape print held upright | Trim | Edge in the page CUPS sends |
 |---|---|---|
 | left | 4 mm | top |
-| right | 0.5 mm | bottom |
+| right | 2.5 mm | bottom |
 | top | 3 mm | right |
 | bottom | 3 mm | left |
 
-The second column is the frame `selphy-bleed.conf` uses. pdftopdf turns a
+The third column is the frame `selphy-bleed.conf` uses. pdftopdf turns a
 landscape page 90° clockwise onto the portrait paper, so the photo's frame
 and the printer's differ; the values are in the printer's.
+
+The right-hand trim was first read as 0.5 mm. A chart printed with the filter
+active then still lost 2 mm on that edge, so it is 2.5 mm; the other three
+came out exact. Checking the filter's own output is the more reliable
+measurement, because the tear-off tab makes the raw edge hard to read.
 
 `images/cups/selphy-bleed` (`application/vnd.cups-pdf` → `image/pwg-raster`,
 after pdftopdf) scales each postcard page to cover just the part of the card
 that survives, positions it to match the uneven trim, and fills the trimmed
 margin by stretching the edge pixels outwards — so the printer cuts off
 stretched edge rather than photo, and a sheet that lands a fraction off shows
-more stretched edge rather than white. The cost is about 1.4 mm off the
-photo's top and bottom (landscape), where the surviving window's 1.53 ratio
+more stretched edge rather than white. The cost is about 0.8 mm off the
+photo's top and bottom (landscape), where the surviving window's 1.50 ratio
 is wider than the page's 1.48. Card and L-size pages pass through unchanged;
 only the postcard was measured.
 
