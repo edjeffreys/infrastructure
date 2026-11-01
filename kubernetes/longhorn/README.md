@@ -101,6 +101,35 @@ PIA workers matter because `arr-postgres` has its replicas there. The existing
 `/mnt/main0/k3s` export already serves both VLANs, since arr's media PVC mounts
 from PIA nodes. Copy its network list.
 
+**Masquerading also rewrites the source *port*, and TrueNAS minds.** Longhorn
+mounts from inside its pods on a privileged port (below 1024), and Cilium's BPF
+SNAT maps it to an unprivileged one on the node IP
+(`10.52.7.173:962 -> 10.200.0.11:34502` in `cilium-dbg bpf nat list`). By
+default TrueNAS only accepts NFS from ports below 1024, so every mount fails
+with `mount.nfs4: Operation not permitted`, the same error a bad network list
+gives. The `nfs` StorageClass never hits this, because the node kernel makes
+those mounts itself, without SNAT. The fix is **Allow non-root mount** on the
+TrueNAS NFS service (step 2 below). It is service-wide, so the export network
+lists are what still restrict access.
+
+**That toggle opens NFS to every pod, so `deny-nfs-egress` closes it again.**
+Before the toggle, no pod could speak NFS to the NAS at all, because SNAT
+always delivered a high port. Afterwards, any pod with `world` egress could,
+from a user-space client (libnfs needs no mount privilege) claiming any UID
+under `AUTH_SYS`: read paperless documents and media, or delete Longhorn
+backups. `kubernetes/cilium/policies/deny-nfs-egress.yaml` denies
+`10.60.0.233:2049` to every pod outside `longhorn-system`. Cilium denies beat
+allows, so it holds whatever `world` grants sit next to it. The CSI NFS pods
+are `hostNetwork`, so endpoint policy never sees them and the `nfs`
+StorageClass is unaffected. The policy sets `enableDefaultDeny: false`.
+Without it, a deny-only policy puts every pod it selects into egress
+default-deny, which would cut off the kube-system pods that `default-deny`
+deliberately excludes.
+
+A new workload that needs NFS from inside its pod (not through a PV) has to be
+added to that policy's exclusions. Also keep the export network lists to the
+node `/32`s, not whole VLANs.
+
 ### TrueNAS setup (by hand, once)
 
 1. **Datasets → `main0` → Add Dataset**: name `longhorn-backups`, preset
@@ -108,13 +137,20 @@ from PIA nodes. Copy its network list.
    Longhorn already lz4-compresses each block and reuses unchanged blocks across
    a volume's backups, so ZFS dedup would cost RAM and save almost nothing.
 2. **Shares → NFS → Add**: path `/mnt/main0/longhorn-backups`.
-   - *Networks*: the same as the `k3s` share. At minimum `10.11.0.0/24` and
-     `10.200.0.0/24`, or the individual node IPs above.
+   - *Networks*: the node IPs above as `/32`s (`10.11.0.10-12`,
+     `10.200.0.10-11`). Not the whole `/24`s: with non-root mounts allowed,
+     any host in a listed network can mount with any UID.
    - *Advanced → Maproot User* `root`, *Maproot Group* `wheel`. Longhorn writes
      as root, and the default root-squash fails the mount check with
      `permission denied`.
-   - Confirm NFSv4 is enabled under **System → Services → NFS**. It already
-     is, because the `nfs` StorageClass mounts with `nfsvers=4.1`.
+   - Under **System → Services → NFS**, tick **Allow non-root mount** (see
+     Network above). NFSv4 is already on, because the `nfs` StorageClass mounts
+     with `nfsvers=4.1`.
+   - If saving fails with `bindip.0: Cannot use 10.60.0.233`, clear **Bind IP
+     Addresses**. TrueNAS only accepts statically configured addresses there,
+     and the NAS's interface is on DHCP, so any edit of the NFS service fails
+     until the field is empty. Saving restarts NFS, which briefly stalls the
+     `nfs`-class mounts.
 3. **Data Protection → Periodic Snapshot Tasks → Add**: dataset
    `main0/longhorn-backups`, not recursive, schedule *Daily* at 07:00 (after
    the 04:30 UTC run has finished in both GMT and BST), lifetime **14 days**.
@@ -132,7 +168,9 @@ volume `enabled` under `default` only. A volume with `backup` but no `default` m
 a PVC lost its `default` label.
 
 If the BackupTarget stays unavailable, its `.status.conditions` give the mount
-error. The usual causes are the export's network list or the maproot setting.
+error. `Operation not permitted` means TrueNAS refused the mount: check
+*Allow non-root mount* first, then the export's network list. A
+`permission denied` after mounting means maproot.
 
 Do not wait for 04:30 to find out whether it works. Back up one small volume by
 hand from the UI (Volume → *Create Backup*, e.g. `seerr-config`), then check
