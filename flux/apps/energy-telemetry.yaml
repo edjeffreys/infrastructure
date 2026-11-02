@@ -1,0 +1,18 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: energy-telemetry
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./kubernetes/energy-telemetry
+  prune: true
+  wait: true
+  timeout: 5m
+  dependsOn:
+    - name: homelab-ca
+    - name: nack
+    - name: monitoring
+  sourceRef:
+    kind: GitRepository
+    name: infrastructure

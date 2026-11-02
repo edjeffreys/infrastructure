@@ -68,6 +68,8 @@ spec:
             k8s:io.kubernetes.pod.namespace: nack
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: alert-relay
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: energy-telemetry
       toPorts:
         - ports:
             - port: "4222"

@@ -1,0 +1,12 @@
+apiVersion: jetstream.nats.io/v1beta2
+kind: Stream
+metadata:
+  name: energy
+  namespace: energy-telemetry
+spec:
+  name: ENERGY
+  subjects: ["glow.*.SENSOR.>", "homeassistant.statestream.>", "truenas.power", "proxmox.power"]
+  storage: file
+  replicas: 3
+  maxBytes: 1073741824
+  preventDelete: true

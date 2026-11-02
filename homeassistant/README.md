@@ -96,6 +96,15 @@ automation reference the IDs and HA does not rewrite them on a rename. They
 report on a 0.3 °C change and go `unavailable` after 24 h of silence
 (`expire_after` in `configuration.yaml`), which is what the health alert keys on.
 
+## Statestream
+
+`packages/statestream.yaml` publishes the ViCare boiler entities to MQTT as
+`homeassistant/statestream/<domain>/<entity>/state`, on change, for
+`kubernetes/energy-telemetry/` to graph. The `homeassistant/` prefix is the
+only one HA may already publish on, on both NATS tiers. Discovery ignores
+these topics because they do not end in `/config`. Adding the integration
+needs `deploy.sh --restart`.
+
 ## Bins
 
 The bin dates come from the `uk_bin_collection` HACS integration (Southampton,

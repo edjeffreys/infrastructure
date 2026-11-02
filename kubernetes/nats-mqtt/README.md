@@ -18,7 +18,7 @@ the opposite — plaintext, password auth, reachable from the IoT VLAN — so it
 kept off the hub entirely:
 
 - The hub sees the whole tier as **one user**, `CN=nats-mqtt-leaf.nats-mqtt`,
-  limited to `shellies.>`, `glow.>` and `homeassistant.>`
+  limited to `shellies.>`, `glow.>`, `homeassistant.>`, `truenas.>` and `proxmox.>`
   (`kubernetes/nats/nats-values.yaml`). A leaked device password reaches those
   subjects and nothing else on the hub, whatever is configured here.
 - MQTT sessions and retained messages live in this tier's own JetStream domain,

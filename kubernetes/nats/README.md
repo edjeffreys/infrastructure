@@ -1,8 +1,9 @@
 # nats
 
 3-node NATS cluster with JetStream, mTLS on every port. Message bus for the
-homelab: MQTT devices and Home Assistant via the `nats-mqtt` leaf, and
-Alertmanager via `alert-relay`; the bin calendar comes later.
+homelab: MQTT devices and Home Assistant via the `nats-mqtt` leaf,
+Alertmanager via `alert-relay`, and energy readings out to Prometheus via
+`energy-telemetry`.
 
 | Port | Listener | TLS |
 |---|---|---|

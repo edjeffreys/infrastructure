@@ -50,7 +50,7 @@ config:
           - user: "CN=nats-mqtt-leaf.nats-mqtt"
             allowed_connection_types: ["LEAFNODE"]
             permissions:
-              publish: &mqtt-subjects ["shellies.>", "glow.>", "homeassistant.>"]
+              publish: &mqtt-subjects ["shellies.>", "glow.>", "homeassistant.>", "truenas.>", "proxmox.>"]
               subscribe: *mqtt-subjects
           - user: "CN=nack.nack"
             permissions:
@@ -61,6 +61,11 @@ config:
               publish: ["alerts.>"]
               # JetStream publish acks come back on an inbox.
               subscribe: ["_INBOX.>"]
+          - user: "CN=energy-telemetry.energy-telemetry"
+            permissions:
+              publish:
+                deny: [">"]
+              subscribe: ["glow.*.SENSOR.>", "homeassistant.statestream.>", "truenas.power", "proxmox.power"]
       SYS:
         users:
           - user: "CN=nats-box-sys.nats"
