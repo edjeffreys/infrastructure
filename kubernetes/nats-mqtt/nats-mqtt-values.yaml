@@ -66,6 +66,18 @@ config:
             permissions:
               publish: &glow ["glow.>"]
               subscribe: *glow
+          - user: truenas
+            password: << $MQTT_TRUENAS_PASSWORD >>
+            allowed_connection_types: ["MQTT"]
+            permissions:
+              publish: ["truenas.>", "homeassistant.sensor.truenas.>"]
+              subscribe: ["truenas.>"]
+          - user: proxmox
+            password: << $MQTT_PROXMOX_PASSWORD >>
+            allowed_connection_types: ["MQTT"]
+            permissions:
+              publish: ["proxmox.>", "homeassistant.sensor.proxmox.>"]
+              subscribe: ["proxmox.>"]
           - user: homeassistant
             password: << $MQTT_HOMEASSISTANT_PASSWORD >>
             allowed_connection_types: ["MQTT"]
@@ -88,6 +100,12 @@ container:
     MQTT_HOMEASSISTANT_PASSWORD:
       valueFrom:
         secretKeyRef: {name: mqtt-users, key: homeassistant}
+    MQTT_TRUENAS_PASSWORD:
+      valueFrom:
+        secretKeyRef: {name: mqtt-users, key: truenas}
+    MQTT_PROXMOX_PASSWORD:
+      valueFrom:
+        secretKeyRef: {name: mqtt-users, key: proxmox}
   merge:
     resources:
       requests:

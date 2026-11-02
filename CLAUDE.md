@@ -15,6 +15,11 @@ Homelab IaC repo. GitOps-managed. User handles all git commits — don't commit 
 
 Single Proxmox node: `proxmox-mini-1` — 16 CPU cores, 64GB RAM.
 
+The host and TrueNAS carry hand-made settings that no code manages — the CPU
+governor, GPU persistence mode, and a cron on each publishing power to MQTT
+(`scripts/host-power-mqtt.py`). See `terraform/proxmox/README.md` and
+`truenas/README.md`.
+
 ---
 
 ## Kubernetes Cluster (Talos)
