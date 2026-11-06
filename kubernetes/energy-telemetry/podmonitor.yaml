@@ -1,0 +1,12 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: energy-telemetry
+  namespace: energy-telemetry
+spec:
+  selector:
+    matchLabels:
+      app: energy-telemetry
+  podMetricsEndpoints:
+    - port: metrics
+      interval: 30s

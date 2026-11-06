@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: energy-telemetry
+  namespace: energy-telemetry
+  annotations:
+    # Neither the config nor the client cert is re-read without a restart.
+    reloader.stakater.com/auto: "true"
+spec:
+  # A second replica would split each subject's messages between two /metrics endpoints.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: energy-telemetry
+  template:
+    metadata:
+      labels:
+        app: energy-telemetry
+    spec:
+      nodeSelector:
+        node-type: standard
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: telegraf
+          image: telegraf:1.40.1-alpine@sha256:6606553b5019151de171984e9ce938eac859d6987aa5329c420597737bf1a9a0
+          args: [telegraf, --config, /etc/telegraf/telegraf.conf]
+          ports:
+            - name: metrics
+              containerPort: 9273
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+          resources:
+            requests:
+              cpu: 10m
+              memory: 48Mi
+            limits:
+              memory: 192Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - {name: config, mountPath: /etc/telegraf, readOnly: true}
+            - {name: homelab-ca, mountPath: /etc/nats-ca, readOnly: true}
+            - {name: nats-client, mountPath: /etc/nats-client, readOnly: true}
+      volumes:
+        - name: config
+          configMap:
+            name: energy-telemetry
+        - name: homelab-ca
+          configMap:
+            name: homelab-ca
+        - name: nats-client
+          secret:
+            secretName: energy-telemetry-nats

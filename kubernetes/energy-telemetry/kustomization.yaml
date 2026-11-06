@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - certificate.yaml
+  - deployment.yaml
+  - home-energy-dashboard.yaml
+  - namespace.yaml
+  - network-policy.yaml
+  - podmonitor.yaml
+  - stream.yaml
+
+configMapGenerator:
+  - name: energy-telemetry
+    namespace: energy-telemetry
+    files:
+      - telegraf.conf

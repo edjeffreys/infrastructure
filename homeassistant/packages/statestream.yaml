@@ -1,0 +1,13 @@
+# Under homeassistant/ because that prefix is already allowed for HA on both NATS tiers.
+mqtt_statestream:
+  base_topic: homeassistant/statestream
+  publish_attributes: false
+  publish_timestamps: false
+  include:
+    entity_globs:
+      - sensor.boiler_*
+      - binary_sensor.boiler_*
+      - number.boiler_*
+      - sensor.*_gas_usage_today
+    entities:
+      - sensor.heating_active_setpoint
