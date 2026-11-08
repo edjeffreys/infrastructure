@@ -149,23 +149,23 @@ views:
       heading: Rooms
       icon: mdi:floor-plan
     - type: tile
-      entity: sensor.bedroom_temperature
+      entity: sensor.nursery_ht_temperature
       name: Nursery
     - type: tile
-      entity: sensor.bedroom_ht
+      entity: sensor.nursery_ht_battery
       name: Nursery battery
     - type: tile
-      entity: sensor.kitchen_temperature
-      name: Kitchen
-    - type: tile
-      entity: sensor.kitchen_ht
-      name: Kitchen battery
-    - type: tile
-      entity: sensor.bathroom_temperature
+      entity: sensor.living_room_ht_temperature
       name: Living room
     - type: tile
-      entity: sensor.bathroom_ht
+      entity: sensor.living_room_ht_battery
       name: Living room battery
+    - type: tile
+      entity: sensor.dining_room_ht_temperature
+      name: Dining room
+    - type: tile
+      entity: sensor.dining_room_ht_battery
+      name: Dining room battery
   - type: grid
     cards:
     - type: heading

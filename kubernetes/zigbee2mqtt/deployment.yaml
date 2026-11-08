@@ -56,6 +56,8 @@ spec:
               valueFrom:
                 secretKeyRef: {name: mqtt-users, key: zigbee2mqtt}
             - {name: ZIGBEE2MQTT_CONFIG_HOMEASSISTANT_ENABLED, value: "true"}
+            # HA's heating sensor health alert relies on dead sensors going unavailable.
+            - {name: ZIGBEE2MQTT_CONFIG_AVAILABILITY_ENABLED, value: "true"}
             - {name: ZIGBEE2MQTT_CONFIG_FRONTEND_ENABLED, value: "true"}
             - {name: ZIGBEE2MQTT_CONFIG_FRONTEND_PORT, value: "8080"}
           ports:

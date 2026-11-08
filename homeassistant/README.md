@@ -89,12 +89,12 @@ house guard exists because of it.
 The ViCare living-room climate sensor (`E3_RoomSensor`) is not usable: the
 public API returns only its battery and signal strength, not temperature.
 
-**The Shelly H&T entity IDs name the wrong rooms.** `sensor.bedroom_*` is in
-the nursery and `sensor.bathroom_*` in the living room; only the display names
-were changed, because HomeKit, the main dashboard and the `Bedroom Humidity`
-automation reference the IDs and HA does not rewrite them on a rename. They
-report on a 0.3 °C change and go `unavailable` after 24 h of silence
-(`expire_after` in `configuration.yaml`), which is what the health alert keys on.
+**Room temperatures come from Aqara T1s via zigbee2mqtt**
+(`kubernetes/zigbee2mqtt/`): `sensor.{nursery,living_room,dining_room}_ht_*`.
+They replaced the Shelly H&Ts, whose `sensor.{bedroom,kitchen,bathroom}_*`
+entities are dead. A silent T1 goes `unavailable` only because zigbee2mqtt's
+availability check is on (25 h for battery devices). That is what the health
+alert keys on, so don't turn it off.
 
 ## Statestream
 

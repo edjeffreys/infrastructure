@@ -1,10 +1,3 @@
-homeassistant:
-  customize:
-    # MQTT sensors carry no state_class, so HA kept no long-term statistics.
-    sensor.bedroom_temperature: { state_class: measurement }
-    sensor.kitchen_temperature: { state_class: measurement }
-    sensor.bathroom_temperature: { state_class: measurement }
-
 input_number:
   heating_target_normal:
     name: Heating target (normal)
@@ -60,7 +53,7 @@ sensor:
     max_age: { hours: 1 }
     keep_last_sample: true
     sampling_size: 2000
-  # Time-weighted: the H&Ts report sparsely, so a plain mean would weight bursts of reports.
+  # Time-weighted: the room sensors report sparsely, so a plain mean would weight bursts of reports.
   - platform: statistics
     name: House temperature 30m
     unique_id: heating_house_temperature_30m
@@ -110,10 +103,10 @@ template:
         device_class: temperature
         state_class: measurement
         availability: >
-          {{ ['sensor.bedroom_temperature', 'sensor.kitchen_temperature', 'sensor.bathroom_temperature']
+          {{ ['sensor.nursery_ht_temperature', 'sensor.living_room_ht_temperature', 'sensor.dining_room_ht_temperature']
              | select('has_value') | list | count >= 2 }}
         state: >
-          {% set t = ['sensor.bedroom_temperature', 'sensor.kitchen_temperature', 'sensor.bathroom_temperature']
+          {% set t = ['sensor.nursery_ht_temperature', 'sensor.living_room_ht_temperature', 'sensor.dining_room_ht_temperature']
              | select('has_value') | map('states') | map('float') | list %}
           {{ (t | sum / t | count) | round(2) }}
 
@@ -336,7 +329,7 @@ automation:
     mode: single
     triggers:
       - trigger: numeric_state
-        entity_id: [sensor.bedroom_ht, sensor.kitchen_ht, sensor.bathroom_ht]
+        entity_id: [sensor.nursery_ht_battery, sensor.living_room_ht_battery, sensor.dining_room_ht_battery]
         below: 20
       - trigger: time
         at: "09:00:00"
@@ -344,10 +337,10 @@ automation:
       - variables:
           problems: >
             {% set ns = namespace(p=[]) %}
-            {% for id in ['bedroom', 'kitchen', 'bathroom'] %}
-              {% set t = 'sensor.' ~ id ~ '_temperature' %}
-              {% set room = state_attr(t, 'friendly_name') | default(id, true) | replace(' Temperature', '') %}
-              {% set bat = states('sensor.' ~ id ~ '_ht') | float(-1) %}
+            {% for id in ['nursery', 'living_room', 'dining_room'] %}
+              {% set t = 'sensor.' ~ id ~ '_ht_temperature' %}
+              {% set room = id | replace('_', ' ') | capitalize %}
+              {% set bat = states('sensor.' ~ id ~ '_ht_battery') | float(-1) %}
               {% if 0 <= bat < 20 %}{% set ns.p = ns.p + [room ~ ' battery ' ~ bat | int ~ '%'] %}{% endif %}
               {% if not has_value(t) %}{% set ns.p = ns.p + [room ~ ' temperature unavailable'] %}{% endif %}
             {% endfor %}
