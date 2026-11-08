@@ -84,6 +84,14 @@ spec:
         - ports:
             - port: "8883"
               protocol: TCP
+    # In-cluster clients reach the VIP without SNAT, so they arrive as their own pod identity.
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: zigbee2mqtt
+      toPorts:
+        - ports:
+            - port: "8883"
+              protocol: TCP
 
 ---
 apiVersion: cilium.io/v2

@@ -158,3 +158,10 @@ spec:
     - toEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: actual-budget
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: zigbee2mqtt
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP

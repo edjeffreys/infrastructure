@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zigbee2mqtt
+  namespace: zigbee2mqtt
+  annotations:
+    reloader.stakater.com/auto: "true"
+spec:
+  replicas: 1
+  # Two instances on one coordinator would corrupt the network.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: zigbee2mqtt
+  template:
+    metadata:
+      labels:
+        app: zigbee2mqtt
+    spec:
+      nodeSelector:
+        node-type: standard
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        # Seeded once: Z2M writes the generated network key back here, and it must never be regenerated.
+        - name: seed-config
+          image: ghcr.io/koenkk/zigbee2mqtt:2.14.3@sha256:fb4a6b0f6868ad1cd6a9996479802b2420e599c3463b62bbff8c8cd9a908f43a
+          command: ["sh", "-c", "[ -f /app/data/configuration.yaml ] || cp /seed/configuration.yaml /app/data/"]
+          securityContext: &container-security
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - {name: data, mountPath: /app/data}
+            - {name: seed, mountPath: /seed}
+      containers:
+        - name: zigbee2mqtt
+          image: ghcr.io/koenkk/zigbee2mqtt:2.14.3@sha256:fb4a6b0f6868ad1cd6a9996479802b2420e599c3463b62bbff8c8cd9a908f43a
+          # Env overrides the file without being written to it, so git stays authoritative for these.
+          env:
+            - {name: TZ, value: Europe/London}
+            - {name: ZIGBEE2MQTT_CONFIG_SERIAL_PORT, value: "tcp://10.100.0.252:6638"}
+            - {name: ZIGBEE2MQTT_CONFIG_SERIAL_ADAPTER, value: zstack}
+            - {name: ZIGBEE2MQTT_CONFIG_MQTT_SERVER, value: "mqtts://mqtt.skaal.dev:8883"}
+            # nats-server's MQTT listener is 3.1.1 only.
+            - {name: ZIGBEE2MQTT_CONFIG_MQTT_VERSION, value: "4"}
+            - {name: ZIGBEE2MQTT_CONFIG_MQTT_BASE_TOPIC, value: zigbee2mqtt}
+            - {name: ZIGBEE2MQTT_CONFIG_MQTT_USER, value: zigbee2mqtt}
+            - name: ZIGBEE2MQTT_CONFIG_MQTT_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: mqtt-zigbee2mqtt, key: password}
+            - {name: ZIGBEE2MQTT_CONFIG_HOMEASSISTANT_ENABLED, value: "true"}
+            - {name: ZIGBEE2MQTT_CONFIG_FRONTEND_ENABLED, value: "true"}
+            - {name: ZIGBEE2MQTT_CONFIG_FRONTEND_PORT, value: "8080"}
+          ports:
+            - {name: http, containerPort: 8080}
+          readinessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 25m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+          securityContext: *container-security
+          volumeMounts:
+            - {name: data, mountPath: /app/data}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: zigbee2mqtt-data
+        - name: seed
+          configMap:
+            name: zigbee2mqtt-seed
