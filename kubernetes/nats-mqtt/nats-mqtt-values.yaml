@@ -83,8 +83,8 @@ config:
             allowed_connection_types: ["MQTT"]
             permissions:
               publish: ["zigbee2mqtt.>", "homeassistant.>"]
-              # MQTT `zigbee2mqtt/#` also subscribes the bare parent subject.
-              subscribe: ["zigbee2mqtt", "zigbee2mqtt.>", "homeassistant.status"]
+              # MQTT `x/#` also subscribes the bare parent `x`. Z2M reads homeassistant/# back to prune stale discovery.
+              subscribe: ["zigbee2mqtt", "zigbee2mqtt.>", "homeassistant", "homeassistant.>"]
           - user: homeassistant
             password: << $MQTT_HOMEASSISTANT_PASSWORD >>
             allowed_connection_types: ["MQTT"]
