@@ -78,11 +78,17 @@ config:
             permissions:
               publish: ["proxmox.>", "homeassistant.sensor.proxmox.>"]
               subscribe: ["proxmox.>"]
+          - user: zigbee2mqtt
+            password: << $MQTT_ZIGBEE2MQTT_PASSWORD >>
+            allowed_connection_types: ["MQTT"]
+            permissions:
+              publish: ["zigbee2mqtt.>", "homeassistant.>"]
+              subscribe: ["zigbee2mqtt.>", "homeassistant.status"]
           - user: homeassistant
             password: << $MQTT_HOMEASSISTANT_PASSWORD >>
             allowed_connection_types: ["MQTT"]
             permissions:
-              publish: ["shellies.>", "glow.>", "homeassistant.>"]
+              publish: ["shellies.>", "glow.>", "homeassistant.>", "zigbee2mqtt.>"]
               # HA subscribes to every integration's discovery topic; the hub's leaf user still bounds what reaches it.
               subscribe: [">"]
       SYS:
@@ -106,6 +112,9 @@ container:
     MQTT_PROXMOX_PASSWORD:
       valueFrom:
         secretKeyRef: {name: mqtt-users, key: proxmox}
+    MQTT_ZIGBEE2MQTT_PASSWORD:
+      valueFrom:
+        secretKeyRef: {name: mqtt-zigbee2mqtt, key: password}
   merge:
     resources:
       requests:
@@ -123,7 +132,7 @@ statefulSet:
     metadata:
       annotations:
         # Passwords are read from env at start, so a 1Password change needs a restart.
-        secret.reloader.stakater.com/reload: mqtt-users
+        secret.reloader.stakater.com/reload: mqtt-users,mqtt-zigbee2mqtt
 
 podTemplate:
   topologySpreadConstraints:

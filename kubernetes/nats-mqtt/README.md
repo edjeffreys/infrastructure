@@ -51,7 +51,8 @@ on both tiers.
 | `glow` | Glow IHD | `glow.>` |
 | `truenas` | TrueNAS power cron (`scripts/host-power-mqtt.py`) | publish `truenas.>`, `homeassistant.sensor.truenas.>`; subscribe `truenas.>` |
 | `proxmox` | Proxmox host power cron (same script) | publish `proxmox.>`, `homeassistant.sensor.proxmox.>`; subscribe `proxmox.>` |
-| `homeassistant` | HA | publish `shellies.>`, `glow.>`, `homeassistant.>`; subscribe `>` |
+| `zigbee2mqtt` | zigbee2mqtt (in-cluster, `kubernetes/zigbee2mqtt/`) | publish `zigbee2mqtt.>`, `homeassistant.>`; subscribe `zigbee2mqtt.>`, `homeassistant.status` |
+| `homeassistant` | HA | publish `shellies.>`, `glow.>`, `homeassistant.>`, `zigbee2mqtt.>`; subscribe `>` |
 
 HA subscribes to `>` because it opens a discovery subscription for every
 integration that *can* use MQTT (Tasmota, ESPHome, DSMR, …); scoping it made
@@ -65,7 +66,12 @@ subjects added to the hub's leaf user, or its messages never leave this tier.
 
 Passwords come from the 1Password item `MQTT Users` in vault `Secrets`, one
 **password field per user, labelled exactly** `shelly`, `glow`,
-`homeassistant`, `truenas`, `proxmox`. Use letters and digits only — nats-server substitutes the env
+`homeassistant`, `truenas`, `proxmox`. The exception is
+`zigbee2mqtt`, whose password is the `password` field of its own item, `MQTT
+zigbee2mqtt`: its namespace mirrors the item too, and a copy of `MQTT Users`
+there would hand it every other client's password.
+
+Use letters and digits only — nats-server substitutes the env
 var into its config and re-parses it, so punctuation can break the config.
 Reloader restarts the StatefulSet when the item changes.
 
