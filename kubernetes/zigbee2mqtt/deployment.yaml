@@ -54,7 +54,7 @@ spec:
             - {name: ZIGBEE2MQTT_CONFIG_MQTT_USER, value: zigbee2mqtt}
             - name: ZIGBEE2MQTT_CONFIG_MQTT_PASSWORD
               valueFrom:
-                secretKeyRef: {name: mqtt-zigbee2mqtt, key: password}
+                secretKeyRef: {name: mqtt-users, key: zigbee2mqtt}
             - {name: ZIGBEE2MQTT_CONFIG_HOMEASSISTANT_ENABLED, value: "true"}
             - {name: ZIGBEE2MQTT_CONFIG_FRONTEND_ENABLED, value: "true"}
             - {name: ZIGBEE2MQTT_CONFIG_FRONTEND_PORT, value: "8080"}
