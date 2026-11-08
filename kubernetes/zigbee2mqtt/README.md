@@ -49,6 +49,14 @@ MQTT topics become NATS subjects (`/` → `.`), so give devices friendly names
 with no spaces or dots, such as `nursery_temperature`. NATS subjects can't contain
 whitespace, and a dot in a topic turns into `//`.
 
+**A name with a space breaks all of MQTT, not just that device.** nats-server
+drops the connection on the first publish to such a topic (`character not
+supported for MQTT topics` in the nats-mqtt log). zigbee2mqtt then reconnects
+and replays its queue, starting with the same message, so it loops: every
+device goes silent and HA loses all lights. Renaming the device again does not
+help, because the bad message is already queued. Delete the pod to clear the
+queue.
+
 ## Radio firmware
 
 Coordinator firmware `20221226`, which is SMLIGHT's newest stable build for this

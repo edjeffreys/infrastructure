@@ -17,6 +17,29 @@ spec:
               protocol: UDP
             - port: "53"
               protocol: TCP
+          # Routes lookups through Cilium's DNS proxy, which allow-ota-egress's toFQDNs needs.
+          rules:
+            dns:
+              - matchPattern: "*"
+
+---
+# OTA index and firmware images; zigbee2mqtt only checks unless an update is started by hand.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-ota-egress
+  namespace: zigbee2mqtt
+spec:
+  endpointSelector: {}
+  egress:
+    - toFQDNs:
+        - matchName: raw.githubusercontent.com
+        - matchName: github.com
+        - matchName: objects.githubusercontent.com
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
 
 ---
 apiVersion: cilium.io/v2
