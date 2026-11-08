@@ -66,10 +66,8 @@ subjects added to the hub's leaf user, or its messages never leave this tier.
 
 Passwords come from the 1Password item `MQTT Users` in vault `Secrets`, one
 **password field per user, labelled exactly** `shelly`, `glow`,
-`homeassistant`, `truenas`, `proxmox`. The exception is
-`zigbee2mqtt`, whose password is the `password` field of its own item, `MQTT
-zigbee2mqtt`: its namespace mirrors the item too, and a copy of `MQTT Users`
-there would hand it every other client's password.
+`homeassistant`, `truenas`, `proxmox`, `zigbee2mqtt`. The zigbee2mqtt
+namespace mirrors the same item, so it holds every client's password too.
 
 Use letters and digits only — nats-server substitutes the env
 var into its config and re-parses it, so punctuation can break the config.

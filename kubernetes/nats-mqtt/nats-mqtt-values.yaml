@@ -114,7 +114,7 @@ container:
         secretKeyRef: {name: mqtt-users, key: proxmox}
     MQTT_ZIGBEE2MQTT_PASSWORD:
       valueFrom:
-        secretKeyRef: {name: mqtt-zigbee2mqtt, key: password}
+        secretKeyRef: {name: mqtt-users, key: zigbee2mqtt}
   merge:
     resources:
       requests:
@@ -132,7 +132,7 @@ statefulSet:
     metadata:
       annotations:
         # Passwords are read from env at start, so a 1Password change needs a restart.
-        secret.reloader.stakater.com/reload: mqtt-users,mqtt-zigbee2mqtt
+        secret.reloader.stakater.com/reload: mqtt-users
 
 podTemplate:
   topologySpreadConstraints:

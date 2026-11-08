@@ -34,9 +34,10 @@ changed later without re-pairing everything.
 
 - **Coordinator:** the router must allow the worker VLAN to `10.100.0.252` on
   TCP 6638. Pods SNAT to their node's IP when they leave the cluster.
-- **MQTT:** user `zigbee2mqtt`, password in the 1Password item `MQTT zigbee2mqtt`
-  (field `password`). The same item is mirrored into `nats-mqtt`, so there is
-  one source. MQTT 3.1.1 until the broker swap in `kubernetes/nats-mqtt/README.md`
+- **MQTT:** user `zigbee2mqtt`, password in the `zigbee2mqtt` field of the
+  1Password item `MQTT Users`, the same item `nats-mqtt` reads. Mirroring it
+  here puts every MQTT client's password in this namespace, a trade accepted
+  for keeping one item. MQTT 3.1.1 until the broker swap in `kubernetes/nats-mqtt/README.md`
   ("MQTT 5 deadline"). Retained discovery messages don't cross brokers, so
   zigbee2mqtt has to move together with HA.
 - **Frontend:** `https://zigbee2mqtt.tail5f17e.ts.net`, tailnet only, no auth of
