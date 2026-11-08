@@ -83,7 +83,8 @@ config:
             allowed_connection_types: ["MQTT"]
             permissions:
               publish: ["zigbee2mqtt.>", "homeassistant.>"]
-              subscribe: ["zigbee2mqtt.>", "homeassistant.status"]
+              # MQTT `zigbee2mqtt/#` also subscribes the bare parent subject.
+              subscribe: ["zigbee2mqtt", "zigbee2mqtt.>", "homeassistant.status"]
           - user: homeassistant
             password: << $MQTT_HOMEASSISTANT_PASSWORD >>
             allowed_connection_types: ["MQTT"]
