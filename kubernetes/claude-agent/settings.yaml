@@ -5,15 +5,15 @@ metadata:
   name: claude-agent-settings
   namespace: claude-agent
 data:
-  # Mounted read-only and passed via --settings, so it cannot be edited by the
-  # agent itself (the PVC-backed ~/.claude is writable, /etc/claude is not).
+  # Managed policy, read-only: the agent can't edit it, unlike ~/.claude on the PVC.
   #
   # These allow/deny lists are convenience and defence in depth, NOT the
   # security boundary — that is the RBAC in rbac.yaml. The point of the allow
   # list is to stop routine read-only commands prompting on your phone.
-  settings.json: |
+  managed-settings.json: |
     {
       "theme": "dark",
+      "allowManagedPermissionRulesOnly": true,
       "permissions": {
         "defaultMode": "default",
         "allow": [

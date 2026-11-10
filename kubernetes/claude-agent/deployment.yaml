@@ -44,6 +44,8 @@ spec:
               value: /home/agent
             - name: REMOTE_CONTROL_NAME
               value: homelab
+            - name: CAPACITY
+              value: "3"
             - name: REPO_URL
               value: https://github.com/edjeffreys/infrastructure
             # Commits are authored by the repo owner, not by an invented
@@ -77,18 +79,24 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
+          # NotReady when logged out or within 3 days of expiry, so KubePodNotReady fires.
+          readinessProbe:
+            exec:
+              command: ["/usr/local/bin/auth-check"]
+            periodSeconds: 300
+            timeoutSeconds: 30
           resources:
             requests:
-              memory: 1Gi
+              memory: 1536Mi
               cpu: 250m
             limits:
-              memory: 4Gi
+              memory: 5Gi
               cpu: 2000m
           volumeMounts:
             - name: home
               mountPath: /home/agent
             - name: settings
-              mountPath: /etc/claude
+              mountPath: /etc/claude-code
               readOnly: true
             - name: tmp
               mountPath: /tmp
@@ -96,7 +104,7 @@ spec:
         - name: home
           persistentVolumeClaim:
             claimName: claude-agent-home
-        # Both files land in /etc/claude. A projected volume is the only way to
+        # Both files land in /etc/claude-code. A projected volume is the only way to
         # merge two ConfigMaps into one mount path.
         - name: settings
           projected:

@@ -15,7 +15,7 @@ fi
 # Deliberately NOT set from a secret. CLAUDE_CODE_OAUTH_TOKEN (and anything from
 # `claude setup-token`) is inference-only by design and Remote Control refuses
 # it: "Remote Control requires a full-scope login token". Auth is instead an
-# interactive `/login` done once over `kubectl attach`, which writes
+# interactive `claude auth login` over `kubectl exec`, which writes
 # ~/.claude/.credentials.json onto the PVC. If the variable were set it would
 # take precedence over those credentials and silently keep the session
 # inference-only, so unset it defensively.
@@ -88,17 +88,16 @@ node -e '
   fs.writeFileSync(p, JSON.stringify(d, null, 2));
 ' "${HOME}/.claude.json" "${REPO_DIR}"
 
-if [ ! -s "${HOME}/.claude/.credentials.json" ]; then
-  echo "!! Not logged in — Remote Control will not register."
-  echo "!! Attach and run /login, complete the OAuth paste-code flow, then"
-  echo "!! run /remote-control. Detach with Ctrl-P Ctrl-Q (Ctrl-C kills it):"
-  echo "!!   kubectl -n claude-agent attach -it deploy/claude-agent"
-  echo "!! Credentials persist on the PVC, so this is once per volume, not once"
-  echo "!! per restart."
-fi
+# Wait rather than crashloop: re-login is manual, and the readiness probe alerts.
+until claude auth status >/dev/null 2>&1; do
+  echo "!! Not logged in — Remote Control cannot start. Log in with:"
+  echo "!!   kubectl -n claude-agent exec -it deploy/claude-agent -- claude auth login"
+  sleep 60
+done
 
-echo "==> starting Claude Code with Remote Control as '${SESSION_NAME}'"
-exec claude --remote-control "${SESSION_NAME}" \
-  --settings /etc/claude/settings.json \
-  --mcp-config /etc/claude/mcp.json \
-  --strict-mcp-config
+echo "==> starting Remote Control server as '${SESSION_NAME}' (capacity ${CAPACITY:-3})"
+exec claude remote-control \
+  --name "${SESSION_NAME}" \
+  --spawn worktree \
+  --capacity "${CAPACITY:-3}" \
+  --permission-mode default
