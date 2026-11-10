@@ -58,6 +58,15 @@ toolchains themselves are in the image and owned by uid 1000, so a session can
 `rustup toolchain install nightly` for fuzzing, but it is gone on the next
 restart.
 
+Build intermediates do **not** go on the PVC. `CARGO_BUILD_BUILD_DIR` and
+`ZIG_GLOBAL_CACHE_DIR` point at `/scratch`, a 20Gi node-local `emptyDir`.
+On the PVC they would be written twice (Longhorn replicas on the one physical
+disk) and copied to TrueNAS daily, all to keep files a rebuild recreates in
+minutes. Cargo's `{workspace-path-hash}` gives every worktree its own build
+dir, so parallel sessions don't serialise on one lock. Only final binaries land
+in each worktree's `target/`. `/scratch` is wiped on every restart, so the first
+build after one starts cold.
+
 ## MCP servers
 
 Two, both pinned static binaries in the image and configured by
@@ -220,10 +229,15 @@ pod so the server restarts on the fresh credentials.
   the PR is open, but an interrupted one leaves it behind. List them with
   `ls ~/Projects/.worktrees/*`; `git worktree prune` in a repo clears entries
   whose directory is already gone.
-- **Build output fills the PVC faster than worktrees do.** Each worktree has its
-  own `target/`, and a Rust workspace's is gigabytes. A leftover worktree now
-  costs real space on a 10Gi volume, so `du -sh ~/Projects/.worktrees/*/*`
-  before anything else when the PVC is full.
+- **Filling `/scratch` evicts the pod.** Going past an `emptyDir`'s
+  `sizeLimit` doesn't fail the write: kubelet evicts the whole pod, ending every
+  session at once. Stale per-worktree build dirs are what fill it, since a removed
+  worktree leaves its `/scratch/cargo/<hash>` behind. `du -sh /scratch/*/*` and
+  delete freely; nothing there is precious.
+- **The PVC is 20Gi, and Longhorn headroom is the limit.** Standard workers had
+  only 15–22Gi of Longhorn space free when it was raised from 10Gi, and every
+  GiB is stored twice on one physical disk. Check `.status.diskStatus` on the
+  Longhorn `Node`s before growing it again.
 - **Prompt injection is the real risk here.** The agent reads pod logs, Flux
   status and GitHub issues — all attacker-influenceable text reaching something
   that holds a GitHub token. Read-only RBAC caps the blast radius; the human

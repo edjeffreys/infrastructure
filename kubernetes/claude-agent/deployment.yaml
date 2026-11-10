@@ -73,6 +73,12 @@ spec:
                 secretKeyRef:
                   name: claude-agent
                   key: GH_TOKEN
+            # Build intermediates go to node-local scratch: off the replicated,
+            # backed-up PVC. Per-workspace dirs keep parallel sessions off one lock.
+            - name: CARGO_BUILD_BUILD_DIR
+              value: "/scratch/cargo/{workspace-path-hash}"
+            - name: ZIG_GLOBAL_CACHE_DIR
+              value: /scratch/zig
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -98,6 +104,8 @@ spec:
               readOnly: true
             - name: tmp
               mountPath: /tmp
+            - name: scratch
+              mountPath: /scratch
       volumes:
         - name: home
           persistentVolumeClaim:
@@ -115,3 +123,7 @@ spec:
                   name: claude-agent-memory
         - name: tmp
           emptyDir: {}
+        # Exceeding sizeLimit evicts the pod, not just the write — see README.
+        - name: scratch
+          emptyDir:
+            sizeLimit: 20Gi
