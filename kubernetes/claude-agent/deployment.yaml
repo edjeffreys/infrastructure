@@ -18,6 +18,8 @@ spec:
         app: claude-agent
     spec:
       serviceAccountName: claude-agent
+      # The Remote Control device name; otherwise it is the pod name and changes on every restart.
+      hostname: homelab
       nodeSelector:
         node-type: standard
       securityContext:
@@ -42,12 +44,8 @@ spec:
               value: Europe/London
             - name: HOME
               value: /home/agent
-            - name: REMOTE_CONTROL_NAME
-              value: homelab
             - name: CAPACITY
               value: "3"
-            - name: REPO_URL
-              value: https://github.com/edjeffreys/infrastructure
             # Commits are authored by the repo owner, not by an invented
             # identity. `claude-agent@users.noreply.github.com` was not a
             # placeholder — that address resolves to a real, unrelated GitHub
@@ -104,8 +102,8 @@ spec:
         - name: home
           persistentVolumeClaim:
             claimName: claude-agent-home
-        # Both files land in /etc/claude-code. A projected volume is the only way to
-        # merge two ConfigMaps into one mount path.
+        # All files land in /etc/claude-code. A projected volume is the only way to
+        # merge several ConfigMaps into one mount path.
         - name: settings
           projected:
             sources:
@@ -113,5 +111,7 @@ spec:
                   name: claude-agent-settings
               - configMap:
                   name: claude-agent-mcp
+              - configMap:
+                  name: claude-agent-memory
         - name: tmp
           emptyDir: {}

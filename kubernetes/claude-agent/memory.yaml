@@ -1,0 +1,47 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: claude-agent-memory
+  namespace: claude-agent
+data:
+  # Managed memory: loaded into every session, and read-only to the agent.
+  CLAUDE.md: |
+    # Working on this machine
+
+    You are running in a pod in Ed's homelab cluster, driven from the Claude
+    app over Remote Control. Several sessions may be running at once, each on
+    a different task. Each session starts in `~/Projects`.
+
+    ## Repositories
+
+    - Every repo lives at `~/Projects/<repo>`, cloned from
+      `https://github.com/edjeffreys/<repo>`. If it is not there, clone it.
+      If it is, `git fetch --prune origin` first — it may be stale.
+    - `gh` and git are already authenticated for all of Ed's repos.
+
+    ## Never work in the main clone
+
+    `~/Projects/<repo>` itself is shared by every session. Do all work in a
+    worktree of your own, branched from the up-to-date default branch:
+
+    ```bash
+    cd ~/Projects/<repo>
+    git fetch --prune origin
+    base=$(git symbolic-ref --short refs/remotes/origin/HEAD)   # e.g. origin/master
+    git worktree add ~/Projects/.worktrees/<repo>/<branch> -b <branch> "$base"
+    cd ~/Projects/.worktrees/<repo>/<branch>
+    ```
+
+    Use a branch name that describes the task. Never switch branches, commit,
+    or leave changes in the main clone — another session may be using it.
+
+    ## Finishing
+
+    - Changes reach any repo only through a pull request that Ed merges. Never
+      push to a default branch, and never force-push a branch you did not
+      create in this session.
+    - Once the PR is open, return to `~/Projects/<repo>` and run
+      `git worktree remove ~/Projects/.worktrees/<repo>/<branch>`. The branch
+      stays on GitHub.
+    - Follow each repo's own `CLAUDE.md` for its conventions.
