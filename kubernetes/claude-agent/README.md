@@ -82,7 +82,7 @@ the PVC. The cost: "always allow" from your phone won't stick — add the rule t
 
 | Server | Binary | Notes |
 |--------|--------|-------|
-| `kubernetes` | `kubernetes-mcp-server` | `--cluster-provider in-cluster --read-only`. Uses the pod's ServiceAccount, so it inherits the RBAC above — the flag is defence in depth, not the boundary. Pre-allowed in settings, so it never prompts. |
+| `kubernetes` | `kubernetes-mcp-server` | `cluster_provider_strategy = "in-cluster"` and `read_only = true`, in the `kubernetes-mcp-server.toml` key of `claude-agent-mcp`: 0.1.0 dropped the equivalent CLI flags. Uses the pod's ServiceAccount, so it inherits the RBAC above — the flag is defence in depth, not the boundary. Pre-allowed in settings, so it never prompts. |
 | `github` | `github-mcp-server` | `stdio`, authenticated with `${GH_TOKEN}`. Deliberately *not* `--read-only`: the token's own scope (one repo, contents + PRs) is the boundary, and PR creation is the point. Writes still prompt on your phone. |
 
 ## Bootstrap

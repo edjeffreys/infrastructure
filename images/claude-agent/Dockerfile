@@ -7,9 +7,9 @@ ARG CLAUDE_CODE_VERSION=2.1.322
 # renovate: datasource=github-releases depName=cli/cli extractVersion=^v(?<version>.+)$
 ARG GH_VERSION=2.103.3
 # renovate: datasource=github-releases depName=github/github-mcp-server extractVersion=^v(?<version>.+)$
-ARG GITHUB_MCP_VERSION=1.11.0
+ARG GITHUB_MCP_VERSION=2.1.0
 # renovate: datasource=github-releases depName=containers/kubernetes-mcp-server extractVersion=^v(?<version>.+)$
-ARG K8S_MCP_VERSION=0.0.66
+ARG K8S_MCP_VERSION=0.1.2
 # renovate: datasource=github-releases depName=rust-lang/rust
 ARG RUST_VERSION=1.99.1
 # renovate: datasource=github-tags depName=ziglang/zig
