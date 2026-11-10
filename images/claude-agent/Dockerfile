@@ -5,7 +5,7 @@ ARG KUBECTL_VERSION=v1.36.1
 # renovate: datasource=npm depName=@anthropic-ai/claude-code
 ARG CLAUDE_CODE_VERSION=2.1.322
 # renovate: datasource=github-releases depName=cli/cli extractVersion=^v(?<version>.+)$
-ARG GH_VERSION=2.63.2
+ARG GH_VERSION=2.103.3
 # renovate: datasource=github-releases depName=github/github-mcp-server extractVersion=^v(?<version>.+)$
 ARG GITHUB_MCP_VERSION=1.11.0
 # renovate: datasource=github-releases depName=containers/kubernetes-mcp-server extractVersion=^v(?<version>.+)$
