@@ -5,11 +5,20 @@ Claude account so you can start sessions from the Claude mobile app.
 
 ## Shape
 
-The pod runs `claude remote-control --spawn worktree --capacity 3` against a
-checkout of this repo. It is a **server**, not a session: open `homelab` in the
-app and start as many sessions as you need, up to `CAPACITY` (3) at once. Each
-gets its own git worktree, so parallel tasks work on separate branches and do
-not trample each other's checkouts.
+The pod runs a Remote Control **server** in `~/Projects`
+(`claude remote-control --spawn same-dir --no-create-session-in-dir`). It shows
+in the app as the device `homelab` — the pod's pinned `hostname` — with no
+sessions until you start one, up to `CAPACITY` (3) at once.
+
+It is not tied to one repo. Every session gets the managed memory in
+`memory.yaml` (`/etc/claude-code/CLAUDE.md`), which tells it to clone into
+`~/Projects/<repo>` if missing, fetch if present, and do all work in a worktree
+of its own under `~/Projects/.worktrees/<repo>/<branch>`, branched from the
+fresh default branch. The main clones are shared by every session and never
+worked in, so parallel tasks cannot trample each other or start from stale code.
+
+`--spawn worktree` was the obvious alternative and is wrong here: it needs the
+server's own directory to be a repo, so it would tie the device to one.
 
 Capacity is bounded by memory, not by Claude: each session is a full Claude
 Code process plus its MCP servers, and the standard workers have 8 GB. Raise
@@ -26,11 +35,18 @@ built-in `view` ClusterRole — which upstream excludes Secrets from by design �
 plus `claude-agent-cluster-read` for cluster-scoped resources. No `create`,
 `update`, `delete`, `patch` or `pods/exec` anywhere.
 
-**Git: PR-write.** This is where the agent actually changes things. Everything
-here deploys through Flux, so the agent doesn't need mutating kube verbs to
-change the cluster — it edits the repo and opens a PR, and you merge from your
-phone. That merge is the only path from "agent decided something" to "cluster
-changed".
+**Git: PR-write, on every one of your repos.** This is where the agent
+actually changes things. Everything here deploys through Flux, so the agent
+doesn't need mutating kube verbs to change the cluster — it edits the repo and
+opens a PR, and you merge from your phone. That merge is the only path from
+"agent decided something" to "cluster changed".
+
+The token reaches **all** repos by choice, for convenience. The cost is the
+blast radius: one successful prompt injection can push branches anywhere you
+own — `infrastructure-archive` included, which carries credentials in its
+history. So **every repo needs branch protection requiring your review on its
+default branch**; that, not the token's scope, is what stops a branch becoming
+a merge. Check it when you create a repo.
 
 **Talos: none.** `talosctl` is not in the image. See the note in the Dockerfile.
 
@@ -60,7 +76,7 @@ Vault `Secrets`, item name `Claude Agent`, one field named exactly:
 
 | Field | Value |
 |-------|-------|
-| `GH_TOKEN` | fine-grained PAT, `contents:write` + `pull_requests:write`, scoped to `edjeffreys/infrastructure` only |
+| `GH_TOKEN` | fine-grained PAT, `contents:write` + `pull_requests:write`, **All repositories** |
 
 **Anthropic auth is deliberately not here.** `claude setup-token` /
 `CLAUDE_CODE_OAUTH_TOKEN` produces an *inference-only* credential, and Remote
@@ -77,8 +93,8 @@ it were ever set it would take precedence over those credentials and silently
 put the session back into inference-only mode.
 
 The GitHub token needs `contents:write` because opening a PR requires pushing a
-branch first. Branch protection on `master` is what keeps that honest — set it
-if you haven't.
+branch first. Branch protection on each repo's default branch is what keeps
+that honest — see "Git" above.
 
 ### 2. Build and push the image
 
@@ -150,8 +166,8 @@ kubectl -n claude-agent exec -it deploy/claude-agent -- claude auth login
 
 It prints a URL; open it, approve, and paste the code back. `-it` is required —
 the paste-code flow needs a real terminal. The entrypoint notices the login
-within a minute and starts the Remote Control server; `homelab` then appears in
-the app.
+within a minute and starts the Remote Control server; the `homelab` device then
+appears in the app.
 
 Credentials land in `~/.claude/.credentials.json` on the Longhorn PVC, so this
 survives restarts. Delete the PVC and you redo it.
@@ -188,9 +204,14 @@ pod so the server restarts on the fresh credentials.
 - **`Recreate` strategy, not `RollingUpdate`.** RWO Longhorn volume, and two
   servers registering the same Remote Control name at once is not a state
   worth discovering.
-- **Worktrees accumulate on the PVC.** Each spawned session works in its own
-  git worktree under the checkout. Prune stale ones now and then with
-  `git worktree prune` and `git worktree list` inside the pod.
+- **The worktree discipline is an instruction, not a mechanism.** Nothing stops
+  a session working in a main clone except `memory.yaml`. If a session ever
+  ends up on a branch in `~/Projects/<repo>`, the next session to fetch there
+  inherits it — the stale-checkout problem the layout exists to avoid.
+- **Worktrees accumulate on the PVC.** Sessions are told to remove theirs once
+  the PR is open, but an interrupted one leaves it behind. List them with
+  `ls ~/Projects/.worktrees/*`; `git worktree prune` in a repo clears entries
+  whose directory is already gone.
 - **Prompt injection is the real risk here.** The agent reads pod logs, Flux
   status and GitHub issues — all attacker-influenceable text reaching something
   that holds a GitHub token. Read-only RBAC caps the blast radius; the human

@@ -24,9 +24,7 @@ unset CLAUDE_CODE_OAUTH_TOKEN
 # Never block on an interactive credential prompt — there is no one to answer it.
 export GIT_TERMINAL_PROMPT=0
 
-REPO_URL="${REPO_URL:-https://github.com/edjeffreys/infrastructure}"
-REPO_DIR="${HOME}/workspace/$(basename "${REPO_URL}" .git)"
-SESSION_NAME="${REMOTE_CONTROL_NAME:-homelab}"
+PROJECTS_DIR="${PROJECTS_DIR:-${HOME}/Projects}"
 
 # Identity. The fallbacks are the repo owner, deliberately: the previous
 # default of `claude-agent <claude-agent@users.noreply.github.com>` was not an
@@ -49,23 +47,15 @@ git config --global user.email "${GIT_AUTHOR_EMAIL}"
 git config --global init.defaultBranch master
 
 # The PVC is owned by uid 1000 via fsGroup, but git still refuses a repo whose
-# owner it cannot match after a uid change. Scope the exemption to our own tree.
-git config --global --add safe.directory "${REPO_DIR}"
+# owner it cannot match after a uid change. "*" since bookworm's git has no globs.
+git config --global --replace-all safe.directory '*'
 
 # Clone and push over HTTPS using the same token gh uses. Never written to disk.
 git config --global credential.helper \
   '!f() { echo username=x-access-token; echo "password=${GH_TOKEN}"; }; f'
 
-if [ ! -d "${REPO_DIR}/.git" ]; then
-  echo "==> cloning ${REPO_URL} into ${REPO_DIR}"
-  mkdir -p "$(dirname "${REPO_DIR}")"
-  git clone "${REPO_URL}" "${REPO_DIR}"
-else
-  echo "==> refreshing existing checkout at ${REPO_DIR}"
-  git -C "${REPO_DIR}" fetch --prune origin || echo "!! fetch failed, continuing with local state"
-fi
-
-cd "${REPO_DIR}"
+mkdir -p "${PROJECTS_DIR}"
+cd "${PROJECTS_DIR}"
 
 # Skip first-run onboarding. Without this the process sits forever on the theme
 # picker — it never reaches Remote Control registration, and the only symptom is
@@ -86,7 +76,7 @@ node -e '
     { hasTrustDialogAccepted: true }
   );
   fs.writeFileSync(p, JSON.stringify(d, null, 2));
-' "${HOME}/.claude.json" "${REPO_DIR}"
+' "${HOME}/.claude.json" "${PROJECTS_DIR}"
 
 # Wait rather than crashloop: re-login is manual, and the readiness probe alerts.
 until claude auth status >/dev/null 2>&1; do
@@ -95,9 +85,9 @@ until claude auth status >/dev/null 2>&1; do
   sleep 60
 done
 
-echo "==> starting Remote Control server as '${SESSION_NAME}' (capacity ${CAPACITY:-3})"
+echo "==> starting Remote Control server on $(hostname) in ${PROJECTS_DIR} (capacity ${CAPACITY:-3})"
 exec claude remote-control \
-  --name "${SESSION_NAME}" \
-  --spawn worktree \
+  --spawn same-dir \
+  --no-create-session-in-dir \
   --capacity "${CAPACITY:-3}" \
   --permission-mode default

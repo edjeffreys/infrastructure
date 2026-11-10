@@ -32,6 +32,11 @@ data:
           "Bash(git show:*)",
           "Bash(git fetch:*)",
           "Bash(git branch:*)",
+          "Bash(git clone https://github.com/edjeffreys/:*)",
+          "Bash(git worktree:*)",
+          "Bash(git symbolic-ref:*)",
+          "Bash(gh repo list:*)",
+          "Bash(gh repo view:*)",
           "Bash(gh pr list:*)",
           "Bash(gh pr view:*)",
           "Bash(gh run list:*)",
@@ -48,8 +53,11 @@ data:
           "Bash(kubectl describe secrets:*)",
           "Bash(kubectl get -o yaml secret:*)",
           "Bash(git push --force:*)",
+          "Bash(git push -f:*)",
           "Bash(git push origin master:*)",
-          "Bash(git push origin HEAD:master:*)"
+          "Bash(git push origin HEAD:master:*)",
+          "Bash(git push origin main:*)",
+          "Bash(git push origin HEAD:main:*)"
         ]
       }
     }
