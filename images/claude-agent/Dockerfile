@@ -17,7 +17,7 @@ ARG ZIG_VERSION=0.17.1
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-      build-essential ca-certificates curl git jq less pkg-config procps \
+      build-essential ca-certificates curl git jq less lsof pkg-config procps \
       ripgrep tini tzdata unzip xz-utils \
  && rm -rf /var/lib/apt/lists/*
 
