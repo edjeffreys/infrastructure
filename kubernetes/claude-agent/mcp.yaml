@@ -5,9 +5,8 @@ metadata:
   name: claude-agent-mcp
   namespace: claude-agent
 data:
-  # Passed with --mcp-config --strict-mcp-config, so this file is the complete
-  # and only set of MCP servers. Mounted read-only; the agent cannot add more.
-  mcp.json: |
+  # Managed policy: the complete set of MCP servers; the agent cannot add more.
+  managed-mcp.json: |
     {
       "mcpServers": {
         "kubernetes": {

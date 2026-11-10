@@ -3,7 +3,7 @@ FROM node:26-bookworm-slim
 # renovate: datasource=github-releases depName=kubernetes/kubernetes
 ARG KUBECTL_VERSION=v1.36.1
 # renovate: datasource=npm depName=@anthropic-ai/claude-code
-ARG CLAUDE_CODE_VERSION=2.1.237
+ARG CLAUDE_CODE_VERSION=2.1.322
 # renovate: datasource=github-releases depName=cli/cli extractVersion=^v(?<version>.+)$
 ARG GH_VERSION=2.63.2
 # renovate: datasource=github-releases depName=github/github-mcp-server extractVersion=^v(?<version>.+)$
@@ -51,7 +51,8 @@ RUN npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
  && npm cache clean --force
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod 0755 /usr/local/bin/entrypoint.sh
+COPY auth-check.sh /usr/local/bin/auth-check
+RUN chmod 0755 /usr/local/bin/entrypoint.sh /usr/local/bin/auth-check
 
 # node:22 ships uid/gid 1000 as "node"; the Deployment pins the same numbers.
 USER 1000:1000

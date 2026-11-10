@@ -1,11 +1,20 @@
 # claude-agent
 
-A headless Claude Code session running in-cluster, paired to your Claude account
-via Remote Control so you can prompt it from the Claude mobile app.
+A headless Claude Code Remote Control server running in-cluster, paired to your
+Claude account so you can start sessions from the Claude mobile app.
 
 ## Shape
 
-The pod runs `claude --remote-control homelab` against a checkout of this repo.
+The pod runs `claude remote-control --spawn worktree --capacity 3` against a
+checkout of this repo. It is a **server**, not a session: open `homelab` in the
+app and start as many sessions as you need, up to `CAPACITY` (3) at once. Each
+gets its own git worktree, so parallel tasks work on separate branches and do
+not trample each other's checkouts.
+
+Capacity is bounded by memory, not by Claude: each session is a full Claude
+Code process plus its MCP servers, and the standard workers have 8 GB. Raise
+`CAPACITY` and the memory limit together.
+
 Remote Control is an **outbound** connection to Anthropic — there is no
 listening port, no Service, and no Tailscale ingress. Nothing in the cluster is
 exposed by running this.
@@ -28,9 +37,15 @@ changed".
 ## MCP servers
 
 Two, both pinned static binaries in the image and configured by
-`claude-agent-mcp` (mounted into `/etc/claude` alongside the settings via a
-projected volume). Started with `--strict-mcp-config`, so that ConfigMap is the
-complete set — the agent cannot add servers of its own.
+`claude-agent-mcp`. Settings and MCP config are both **managed policy**: the
+ConfigMaps are mounted read-only at `/etc/claude-code/managed-settings.json` and
+`managed-mcp.json`. Server mode has no `--settings` / `--mcp-config` /
+`--strict-mcp-config` flags, and managed policy is stricter anyway — every
+spawned session gets it, `managed-mcp.json` takes exclusive control (the agent
+cannot add servers of its own), and `allowManagedPermissionRulesOnly` stops a
+session widening its allow list via the writable `~/.claude/settings.json` on
+the PVC. The cost: "always allow" from your phone won't stick — add the rule to
+`settings.yaml` instead.
 
 | Server | Binary | Notes |
 |--------|--------|-------|
@@ -55,8 +70,9 @@ Control refuses it outright:
 > `claude setup-token` or `CLAUDE_CODE_OAUTH_TOKEN`) are limited to
 > inference-only for security reasons.
 
-So auth is a one-time interactive `/login` (step 5) whose credentials live on
-the PVC. The entrypoint unsets `CLAUDE_CODE_OAUTH_TOKEN` defensively, because if
+So auth is an interactive `claude auth login` (step 5) whose credentials live
+on the PVC, and it has to be **repeated roughly monthly** — see "The login
+expires" under Gotchas. The entrypoint unsets `CLAUDE_CODE_OAUTH_TOKEN` defensively, because if
 it were ever set it would take precedence over those credentials and silently
 put the session back into inference-only mode.
 
@@ -88,10 +104,11 @@ hand-applied `op inject` bootstrap file: `imagePullSecrets` requires type
 
 CI does not touch the cluster (the ARC runner ServiceAccount has no
 `patch`/`update` on Deployments), so a new push still needs a manual restart to
-actually roll out:
+actually roll out. Delete the pod rather than `rollout restart`, which Flux
+turns into two restarts:
 
 ```bash
-kubectl -n claude-agent rollout restart deploy/claude-agent
+kubectl -n claude-agent delete pod -l app=claude-agent
 ```
 
 **Local/manual build (break-glass, e.g. testing a Dockerfile change before
@@ -122,47 +139,58 @@ is an aggregated ClusterRole, so a chart shipping a rule labelled
 `rbac.authorization.k8s.io/aggregate-to-view: "true"` can widen it without
 touching anything in this directory.
 
-### 5. Log in and pair (one-time, interactive)
+### 5. Log in (interactive, and again whenever it expires)
 
-This step cannot be automated — see step 1. Attach to the pty:
+This step cannot be automated — see step 1. While logged out the entrypoint
+waits, printing the command below every minute, and the pod stays NotReady.
 
 ```bash
-kubectl -n claude-agent attach -it deploy/claude-agent
+kubectl -n claude-agent exec -it deploy/claude-agent -- claude auth login
 ```
 
-Then, in the session:
-
-1. `/login` — completes the OAuth paste-code flow. Needs a real terminal; a
-   piped stdin fails with `tty and stderr cannot both be true`.
-2. `/remote-control` — registers the session with your account.
-
-Detach with **Ctrl-P Ctrl-Q**. **Not** `Ctrl-C`, which kills the session and
-restarts the pod.
+It prints a URL; open it, approve, and paste the code back. `-it` is required —
+the paste-code flow needs a real terminal. The entrypoint notices the login
+within a minute and starts the Remote Control server; `homelab` then appears in
+the app.
 
 Credentials land in `~/.claude/.credentials.json` on the Longhorn PVC, so this
-is once per volume, not once per restart. Delete the PVC and you redo it.
+survives restarts. Delete the PVC and you redo it.
 
-Confirm it actually registered — a session file alone is not proof, since every
-session writes one for local IPC regardless. Look for a live outbound
-connection instead:
+Check it:
 
 ```bash
-kubectl -n claude-agent exec deploy/claude-agent -- sh -c 'ls -l /proc/7/fd | grep -c socket'
+kubectl -n claude-agent exec deploy/claude-agent -- claude auth status --text
+kubectl -n claude-agent get pod -l app=claude-agent   # READY 1/1
 ```
+
+**Re-logging in while the server is running:** log in as above, then delete the
+pod so the server restarts on the fresh credentials.
 
 ## Gotchas
 
-- **The pty is load-bearing.** `stdin: true` + `tty: true` on the container are
-  required; Remote Control runs the interactive TUI. Remove them and the pod
-  crashloops with no useful error.
+- **The login expires, roughly monthly, and nothing can renew it.** The
+  full-scope OAuth login carries a refresh token with a fixed expiry
+  (`refreshTokenExpiresAt`); when it passes, Claude wipes the tokens from
+  `.credentials.json` and every session dies. The pod does **not** restart — the
+  first time, it sat running and silently signed out for seven weeks. The
+  readiness probe (`auth-check` in the image, `claude auth status` plus
+  `loginExpiresAt`) now turns the pod NotReady when logged out **or within 3 days
+  of expiry**, so `KubePodNotReady` fires with time to re-login at your
+  convenience. Tune the margin with `LOGIN_WARN_DAYS`.
+- **`stdin`/`tty` were load-bearing for the old TUI mode.** `claude
+  --remote-control` ran the interactive TUI and crashlooped without a pty.
+  Server mode may not need them; they are kept until that is confirmed.
 - **The PVC holds the login.** `~/.claude/.credentials.json` lives on
   `claude-agent-home`. This is the one piece of state that is *not* reproducible
   from git or 1Password — Remote Control requires a full-scope interactive
   login, which no secret manager can supply. Delete the PVC and you redo step 5
   by hand. Worth knowing before any Longhorn volume surgery.
 - **`Recreate` strategy, not `RollingUpdate`.** RWO Longhorn volume, and two
-  sessions registering the same Remote Control name at once is not a state
+  servers registering the same Remote Control name at once is not a state
   worth discovering.
+- **Worktrees accumulate on the PVC.** Each spawned session works in its own
+  git worktree under the checkout. Prune stale ones now and then with
+  `git worktree prune` and `git worktree list` inside the pod.
 - **Prompt injection is the real risk here.** The agent reads pod logs, Flux
   status and GitHub issues — all attacker-influenceable text reaching something
   that holds a GitHub token. Read-only RBAC caps the blast radius; the human
