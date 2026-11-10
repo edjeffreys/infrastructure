@@ -50,6 +50,23 @@ a merge. Check it when you create a repo.
 
 **Talos: none.** `talosctl` is not in the image. See the note in the Dockerfile.
 
+**Builds: Rust, Zig and a C toolchain.** The image carries `build-essential`,
+stable Rust (with clippy and rustfmt) and Zig, all pinned and Renovate-managed,
+so sessions can build and test repos such as `shroud` rather than only edit
+them. `CARGO_HOME` is on the PVC so the crate cache survives restarts; the
+toolchains themselves are in the image and owned by uid 1000, so a session can
+`rustup toolchain install nightly` for fuzzing, but it is gone on the next
+restart.
+
+Build intermediates do **not** go on the PVC. `CARGO_BUILD_BUILD_DIR` and
+`ZIG_GLOBAL_CACHE_DIR` point at `/scratch`, a 20Gi node-local `emptyDir`.
+On the PVC they would be written twice (Longhorn replicas on the one physical
+disk) and copied to TrueNAS daily, all to keep files a rebuild recreates in
+minutes. Cargo's `{workspace-path-hash}` gives every worktree its own build
+dir, so parallel sessions don't serialise on one lock. Only final binaries land
+in each worktree's `target/`. `/scratch` is wiped on every restart, so the first
+build after one starts cold.
+
 ## MCP servers
 
 Two, both pinned static binaries in the image and configured by
@@ -65,7 +82,7 @@ the PVC. The cost: "always allow" from your phone won't stick — add the rule t
 
 | Server | Binary | Notes |
 |--------|--------|-------|
-| `kubernetes` | `kubernetes-mcp-server` | `--cluster-provider in-cluster --read-only`. Uses the pod's ServiceAccount, so it inherits the RBAC above — the flag is defence in depth, not the boundary. Pre-allowed in settings, so it never prompts. |
+| `kubernetes` | `kubernetes-mcp-server` | `cluster_provider_strategy = "in-cluster"` and `read_only = true`, in the `kubernetes-mcp-server.toml` key of `claude-agent-mcp`: 0.1.0 dropped the equivalent CLI flags. Uses the pod's ServiceAccount, so it inherits the RBAC above — the flag is defence in depth, not the boundary. Pre-allowed in settings, so it never prompts. |
 | `github` | `github-mcp-server` | `stdio`, authenticated with `${GH_TOKEN}`. Deliberately *not* `--read-only`: the token's own scope (one repo, contents + PRs) is the boundary, and PR creation is the point. Writes still prompt on your phone. |
 
 ## Bootstrap
@@ -212,6 +229,15 @@ pod so the server restarts on the fresh credentials.
   the PR is open, but an interrupted one leaves it behind. List them with
   `ls ~/Projects/.worktrees/*`; `git worktree prune` in a repo clears entries
   whose directory is already gone.
+- **Filling `/scratch` evicts the pod.** Going past an `emptyDir`'s
+  `sizeLimit` doesn't fail the write: kubelet evicts the whole pod, ending every
+  session at once. Stale per-worktree build dirs are what fill it, since a removed
+  worktree leaves its `/scratch/cargo/<hash>` behind. `du -sh /scratch/*/*` and
+  delete freely; nothing there is precious.
+- **The PVC is 20Gi, and Longhorn headroom is the limit.** Standard workers had
+  only 15–22Gi of Longhorn space free when it was raised from 10Gi, and every
+  GiB is stored twice on one physical disk. Check `.status.diskStatus` on the
+  Longhorn `Node`s before growing it again.
 - **Prompt injection is the real risk here.** The agent reads pod logs, Flux
   status and GitHub issues — all attacker-influenceable text reaching something
   that holds a GitHub token. Read-only RBAC caps the blast radius; the human

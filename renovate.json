@@ -1,7 +1,9 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "description": "semanticCommits is pinned rather than left at its default of `auto`. Auto-detection infers the convention by reading recent commits on the default branch, and this repo was recreated in Aug 2026 from a single squashed commit (the 950-commit history is in edjeffreys/infrastructure-archive). With only `Initial commit` to look at, Renovate concluded the repo does not use conventional commits and silently dropped the `chore(deps):` prefix from every PR title. Stating it explicitly means the convention no longer depends on history that may be squashed again.",
+  "description": "semanticCommits is pinned rather than left at its default of `auto`. Auto-detection infers the convention by reading recent commits on the default branch, and this repo was recreated in Aug 2026 from a single squashed commit (the 950-commit history is in edjeffreys/infrastructure-archive). With only `Initial commit` to look at, Renovate concluded the repo does not use conventional commits and silently dropped the `chore(deps):` prefix from every PR title. Stating it explicitly means the convention no longer depends on history that may be squashed again. prConcurrentLimit and dependencyDashboard are pinned for the same class of reason: the hosted app's default caps open PRs at 10, the backlog had sat at exactly 10, and with no dashboard the queued updates were invisible. claude-agent's gh went 40 releases stale behind that cap until `gh pr view` broke outright, which looked like a broken regexManager and was not.",
   "semanticCommits": "enabled",
+  "prConcurrentLimit": 20,
+  "dependencyDashboard": true,
   "flux": {
     "fileMatch": ["^flux/.+\\.yaml$"]
   },

@@ -198,6 +198,12 @@ but the titles stopped matching the convention above. Pin settings that
 Renovate would otherwise infer: this is the same class of silent failure as the
 ARC runner image going five releases stale.
 
+`prConcurrentLimit` (20) and `dependencyDashboard` are pinned too. The hosted
+app caps open PRs at 10 by default, and the backlog sat at exactly 10, so every
+new update queued silently behind unmerged ones. claude-agent's `gh` went 40
+releases stale that way until `gh pr view` stopped working. If a pin seems
+unmanaged, check the Dependency Dashboard issue before suspecting the manager.
+
 
 ---
 

@@ -11,10 +11,7 @@ data:
       "mcpServers": {
         "kubernetes": {
           "command": "kubernetes-mcp-server",
-          "args": [
-            "--cluster-provider", "in-cluster",
-            "--read-only"
-          ]
+          "args": ["--config", "/etc/claude-code/kubernetes-mcp-server.toml"]
         },
         "github": {
           "command": "github-mcp-server",
@@ -25,3 +22,8 @@ data:
         }
       }
     }
+  # 0.1.0 dropped every runtime CLI flag; an unknown key fails the load, so a
+  # typo here stops the server rather than silently losing read_only.
+  kubernetes-mcp-server.toml: |
+    cluster_provider_strategy = "in-cluster"
+    read_only = true
