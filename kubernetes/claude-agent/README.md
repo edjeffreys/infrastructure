@@ -56,7 +56,8 @@ so sessions can build and test repos such as `shroud` rather than only edit
 them. `CARGO_HOME` is on the PVC so the crate cache survives restarts; the
 toolchains themselves are in the image and owned by uid 1000, so a session can
 `rustup toolchain install nightly` for fuzzing, but it is gone on the next
-restart.
+restart. `lsof` is there because shroud's smoke test uses it to find the
+server process; without it, the idle-CPU and server-restart checks fail.
 
 Build intermediates do **not** go on the PVC. `CARGO_BUILD_BUILD_DIR` and
 `ZIG_GLOBAL_CACHE_DIR` point at `/scratch`, a 20Gi node-local `emptyDir`.
