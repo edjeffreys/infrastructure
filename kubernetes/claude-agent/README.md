@@ -50,6 +50,14 @@ a merge. Check it when you create a repo.
 
 **Talos: none.** `talosctl` is not in the image. See the note in the Dockerfile.
 
+**Builds: Rust, Zig and a C toolchain.** The image carries `build-essential`,
+stable Rust (with clippy and rustfmt) and Zig, all pinned and Renovate-managed,
+so sessions can build and test repos such as `shroud` rather than only edit
+them. `CARGO_HOME` is on the PVC so the crate cache survives restarts; the
+toolchains themselves are in the image and owned by uid 1000, so a session can
+`rustup toolchain install nightly` for fuzzing, but it is gone on the next
+restart.
+
 ## MCP servers
 
 Two, both pinned static binaries in the image and configured by
@@ -212,6 +220,10 @@ pod so the server restarts on the fresh credentials.
   the PR is open, but an interrupted one leaves it behind. List them with
   `ls ~/Projects/.worktrees/*`; `git worktree prune` in a repo clears entries
   whose directory is already gone.
+- **Build output fills the PVC faster than worktrees do.** Each worktree has its
+  own `target/`, and a Rust workspace's is gigabytes. A leftover worktree now
+  costs real space on a 10Gi volume, so `du -sh ~/Projects/.worktrees/*/*`
+  before anything else when the PVC is full.
 - **Prompt injection is the real risk here.** The agent reads pod logs, Flux
   status and GitHub issues — all attacker-influenceable text reaching something
   that holds a GitHub token. Read-only RBAC caps the blast radius; the human
