@@ -29,7 +29,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: coredns
-          image: registry.k8s.io/coredns/coredns:v1.14.7
+          image: registry.k8s.io/coredns/coredns:v1.15.0@sha256:0a9d8c8ddf34347eb59aad9a8784f0710de88d6d112726d11d271f9bc6daca26
           args: [-conf, /etc/coredns/Corefile]
           ports:
             - name: dns
