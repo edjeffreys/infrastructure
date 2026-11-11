@@ -39,6 +39,14 @@ spec:
             httpGet:
               path: /ready
               port: http
+          # A fresh start burns CPU for over 30s before its first log line; without
+          # this the liveness probe kills it every time.
+          startupProbe:
+            httpGet:
+              path: /ping
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
           livenessProbe:
             httpGet:
               path: /ping
