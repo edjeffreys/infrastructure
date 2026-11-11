@@ -1,0 +1,44 @@
+# One prober per PIA node, so the probes leave the way the arr stack's traffic does.
+kind: DaemonSet
+
+nodeSelector:
+  node-type: pia
+tolerations:
+  - key: node-type
+    operator: Equal
+    value: pia
+    effect: NoExecute
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    memory: 64Mi
+
+config:
+  modules:
+    http_2xx:
+      prober: http
+      timeout: 10s
+      http:
+        valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+        follow_redirects: true
+        preferred_ip_protocol: ip4
+
+serviceMonitor:
+  enabled: true
+  defaults:
+    interval: 60s
+    scrapeTimeout: 15s
+    module: http_2xx
+    additionalRelabeling:
+      - sourceLabels: [__meta_kubernetes_pod_node_name]
+        targetLabel: node
+  # Two unrelated providers, one by IP: a single site being down, or DNS
+  # failing, must not read as the tunnel being down.
+  targets:
+    - name: gstatic
+      url: https://www.gstatic.com/generate_204
+    - name: cloudflare
+      url: https://1.1.1.1/cdn-cgi/trace
