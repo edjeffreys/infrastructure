@@ -1,0 +1,14 @@
+apiVersion: jetstream.nats.io/v1beta2
+kind: Consumer
+metadata:
+  name: claude-agent
+  namespace: claude-agent
+spec:
+  streamName: ALERTS
+  durableName: claude-agent
+  filterSubjects:
+    - alerts.firing.warning.>
+    - alerts.firing.critical.>
+  # "new", not "all": the stream keeps 30 days, and replaying it would start a session for every old alert.
+  deliverPolicy: new
+  ackPolicy: explicit

@@ -106,6 +106,15 @@ spec:
               mountPath: /tmp
             - name: scratch
               mountPath: /scratch
+            - name: alert-dispatch
+              mountPath: /etc/alert-dispatch
+              readOnly: true
+            - name: nats-client
+              mountPath: /etc/nats-client
+              readOnly: true
+            - name: homelab-ca
+              mountPath: /etc/nats-ca
+              readOnly: true
       volumes:
         - name: home
           persistentVolumeClaim:
@@ -127,3 +136,12 @@ spec:
         - name: scratch
           emptyDir:
             sizeLimit: 20Gi
+        - name: alert-dispatch
+          configMap:
+            name: claude-agent-alert-dispatch
+        - name: nats-client
+          secret:
+            secretName: claude-agent-nats
+        - name: homelab-ca
+          configMap:
+            name: homelab-ca

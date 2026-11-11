@@ -1,0 +1,15 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: claude-agent-nats
+  namespace: claude-agent
+spec:
+  secretName: claude-agent-nats
+  duration: 2160h
+  renewBefore: 720h
+  issuerRef:
+    kind: ClusterIssuer
+    name: homelab-ca
+  commonName: claude-agent.claude-agent
+  usages:
+    - client auth
