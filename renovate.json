@@ -168,6 +168,32 @@
     {
       "matchUpdateTypes": ["digest"],
       "enabled": false
+    },
+    {
+      "description": "Merging deploys: Flux applies master within minutes, so the required checks are the only gate. minimumReleaseAge keeps a release yanked in its first days out of the cluster.",
+      "matchUpdateTypes": ["minor", "patch", "pin", "pinDigest"],
+      "automerge": true,
+      "minimumReleaseAge": "3 days"
+    },
+    {
+      "description": "A 0.x minor is a breaking release under semver.",
+      "matchUpdateTypes": ["minor"],
+      "matchCurrentVersion": "/^v?0\\./",
+      "automerge": false
+    },
+    {
+      "description": "A bad bump here can take out the nodes, storage, databases, cluster DNS or Flux itself, and Flux could not then roll it back. Must stay below the automerge rule: later packageRules win.",
+      "matchPackageNames": ["ghcr.io/siderolabs/installer", "kubernetes/kubernetes", "/longhorn/", "/cloudnative-pg/", "/fluxcd/", "/coredns/"],
+      "automerge": false
+    },
+    {
+      "description": "Terraform changes the Proxmox VMs; images/ rebuilds claude-agent, the image Claude sessions run in.",
+      "matchManagers": ["terraform"],
+      "automerge": false
+    },
+    {
+      "matchFileNames": ["images/**"],
+      "automerge": false
     }
   ]
 }
