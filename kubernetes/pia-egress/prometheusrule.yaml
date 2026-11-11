@@ -1,0 +1,29 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: pia-egress
+  namespace: pia-egress
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: pia-egress
+      rules:
+        - alert: PIAEgressDown
+          expr: max by (node) (probe_success{namespace="pia-egress"}) == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.node }} has had no internet through the PIA VPN for 5 minutes."
+            description: "Every probe from the PIA node is failing, so the arr stack, pinchflat and image pulls there are too. Check the router's PIA VPN client first — see kubernetes/pia-egress/README.md."
+
+        # Without this, a prober that is not running looks the same as a healthy tunnel.
+        - alert: PIAEgressProbeMissing
+          expr: (count(up{namespace="pia-egress"} == 1) or vector(0)) < 2
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Only {{ $value }} of 2 PIA egress probers are being scraped."
+            description: "PIAEgressDown cannot fire for a PIA node with no prober. Check the pia-egress DaemonSet and the pia-egress Flux Kustomization."

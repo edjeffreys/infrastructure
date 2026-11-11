@@ -554,6 +554,7 @@ See `kubernetes/arc-systems/README.md` for the full setup and a diagnosis runboo
 | sabnzbd | arr | pia | CPU limit 3000m for par2/unpack |
 | seerr | arr | pia | Postgres (`seerr` on `arr-postgres`) |
 | arr-postgres | arr | pia | CNPG cluster for the arr stack |
+| pia-egress | pia-egress | pia | blackbox-exporter DaemonSet probing internet through the router's PIA VPN; `PIAEgressDown` points at the tunnel itself — see `kubernetes/pia-egress/README.md` |
 | mealie | mealie | standard | |
 | actual-budget | actual-budget | standard | SQLite only — see "Not migrated" above |
 | paperless | paperless | standard | Helm chart, Tailscale ingress |
