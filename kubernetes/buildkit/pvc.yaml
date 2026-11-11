@@ -1,6 +1,6 @@
 ---
-# Layer cache. buildkit's default GC sizes itself from the filesystem it finds,
-# so this number is the cache bound and no gc config is needed.
+# Layer cache. The GC caps in buildkitd.toml are absolute, so resizing this
+# claim means revisiting them — README.md.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

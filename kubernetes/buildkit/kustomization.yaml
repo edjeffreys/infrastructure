@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: buildkit
+resources:
+  - namespace.yaml
+  - deployment.yaml
+  - pvc.yaml
+  - service.yaml
+  - network-policy.yaml
+
+# Hashed name, so a config change rolls the Deployment.
+configMapGenerator:
+  - name: buildkitd-config
+    files:
+      - buildkitd.toml
