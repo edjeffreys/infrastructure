@@ -40,10 +40,28 @@ The `buildkit-cache-single` PVC (`longhorn-single`, 10Gi) is mounted at
 re-downloaded the whole `claude-agent` base layer, `apt` set and global `npm`
 install; those are now reused between builds.
 
-No GC configuration is needed. BuildKit's default policy sizes itself from the
-filesystem it finds, and the PVC is a dedicated one, so the PVC's size is the
-cache bound. Raising it raises the cache — bearing in mind all worker VMs sit
-on the one Proxmox physical disk.
+GC is set explicitly in `buildkitd.toml`: `maxUsedSpace = "6GB"`,
+`minFreeSpace = "3GB"`, `reservedSpace = "2GB"`. The caps are absolute, so if you
+resize the PVC, change them too.
+
+The defaults were not enough. On a 10Gi volume BuildKit's default caps the cache
+at 80% of the filesystem with 20% kept free. GC only prunes records that no
+build is using, and it runs between builds, so concurrent CI builds kept writing
+past the cap. On 2026-11-11 the filesystem reached 99%. That alone is not an
+outage. The damage came from what Longhorn did with it:
+
+- A replica rebuild took a system snapshot of the ~10 GB of data. New writes then
+  landed on top of the snapshot, and the single replica on `talos-worker-2` grew
+  to 138% of the volume's size.
+- Merging the snapshot back needs more free space, and the purge failed with
+  `no space left on device`.
+- `/var/lib/longhorn` shares a filesystem with the kubelet's images and ephemeral
+  storage, so the node went into `DiskPressure`. The kubelet started evicting
+  pods and Longhorn marked the node down.
+
+Leaving the gap between 6 GB and 10Gi is what absorbs builds that are running
+while GC waits. Bear in mind too that all worker VMs sit on the one Proxmox
+physical disk.
 
 It is single-replica because everything in it can be rebuilt: losing the
 replica's node costs one cold build, while a second replica doubled every

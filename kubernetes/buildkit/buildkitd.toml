@@ -1,0 +1,7 @@
+# GC only runs between builds, so the default 80% cap let concurrent builds
+# fill the 10Gi PVC to 99%. The gap below 10Gi is in-flight headroom — README.md.
+[worker.oci]
+  gc = true
+  reservedSpace = "2GB"
+  maxUsedSpace = "6GB"
+  minFreeSpace = "3GB"

@@ -25,6 +25,9 @@ spec:
         # Longhorn hands the volume over root-owned; uid 1000 cannot write its
         # own cache without this. Same failure the ARC work volume had.
         fsGroup: 1000
+        # A full chown of ~110k cache files on every attach delayed the
+        # restart during the 2026-11-11 disk-full incident.
+        fsGroupChangePolicy: OnRootMismatch
         # RuntimeDefault blocks the syscalls rootless buildkitd uses to nest
         # user namespaces. No AppArmor counterpart: Talos ships no AppArmor LSM.
         seccompProfile:
@@ -40,6 +43,8 @@ spec:
             # Otherwise the daemon unshares a nested PID namespace, needing
             # privileges the pod does not have. Costs build steps their sandbox.
             - --oci-worker-no-process-sandbox
+            - --config
+            - /etc/buildkit/buildkitd.toml
           ports:
             - name: grpc
               containerPort: 1234
@@ -65,7 +70,13 @@ spec:
           volumeMounts:
             - name: cache
               mountPath: /home/user/.local/share/buildkit
+            - name: config
+              mountPath: /etc/buildkit
+              readOnly: true
       volumes:
+        - name: config
+          configMap:
+            name: buildkitd-config
         - name: cache
           persistentVolumeClaim:
             claimName: buildkit-cache-single
