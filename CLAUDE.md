@@ -33,7 +33,7 @@ governor, GPU persistence mode, and a cron on each publishing power to MQTT
 
 | Pool | Count | CPU | RAM | Taint | Purpose |
 |------|-------|-----|-----|-------|---------|
-| talos-cp-{0,1,2} | 3 | — | — | `control-plane:NoSchedule` | Control plane / etcd only |
+| talos-cp-{0,1,2} | 3 | 2 cores | 6GB | `control-plane:NoSchedule` | Control plane / etcd only |
 | talos-worker-{0,1,2} | 3 | 8 cores | 8GB | — | General workloads |
 | talos-worker-pia-{0,1} | 2 | 4 cores | 8GB | `node-type=pia:NoExecute` | arr stack + PIA exit node |
 

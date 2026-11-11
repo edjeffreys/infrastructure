@@ -68,6 +68,9 @@ resource "proxmox_virtual_environment_vm" "talos-cp-0" {
   node_name = local.pve_node
   vm_id     = 630
 
+  # Apply would restart all three back to back and break etcd quorum; restart one at a time by hand.
+  reboot_after_update = false
+
   bios       = "ovmf"
   machine    = "q35"
   on_boot    = true
@@ -92,7 +95,7 @@ resource "proxmox_virtual_environment_vm" "talos-cp-0" {
   }
 
   memory {
-    dedicated = 4096
+    dedicated = 6144
   }
 
   network_device {
@@ -270,6 +273,8 @@ resource "proxmox_virtual_environment_vm" "talos-cp-1" {
   node_name = local.pve_node
   vm_id     = 633
 
+  reboot_after_update = false
+
   bios       = "ovmf"
   machine    = "q35"
   on_boot    = true
@@ -294,7 +299,7 @@ resource "proxmox_virtual_environment_vm" "talos-cp-1" {
   }
 
   memory {
-    dedicated = 4096
+    dedicated = 6144
   }
 
   network_device {
@@ -323,6 +328,8 @@ resource "proxmox_virtual_environment_vm" "talos-cp-2" {
   node_name = local.pve_node
   vm_id     = 634
 
+  reboot_after_update = false
+
   bios       = "ovmf"
   machine    = "q35"
   on_boot    = true
@@ -347,7 +354,7 @@ resource "proxmox_virtual_environment_vm" "talos-cp-2" {
   }
 
   memory {
-    dedicated = 4096
+    dedicated = 6144
   }
 
   network_device {
