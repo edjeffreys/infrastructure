@@ -37,6 +37,7 @@ load_config() {
   DEDUPE_HOURS=6
   IDLE_STOP_HOURS=12
   IGNORE_ALERTS="Watchdog InfoInhibitor"
+  PERMISSION_MODE=auto
   # shellcheck disable=SC1090
   [ -f "${CONFIG}" ] && . "${CONFIG}"
 }
@@ -117,7 +118,7 @@ Alerts, one JSON object per line:
 $(jq -c '.[] | {status, labels, annotations, startsAt}' <<<"${candidates}")"
 
   log "starting ${name} for ${count} alert(s): ${names}"
-  if (cd "${PROJECTS_DIR}" && claude --bg --remote-control "${name}" --permission-mode auto "${prompt}") >>"${LOG}" 2>&1; then
+  if (cd "${PROJECTS_DIR}" && claude --bg --name "${name}" --remote-control "${name}" --permission-mode "${PERMISSION_MODE}" "${prompt}") >>"${LOG}" 2>&1; then
     jq --argjson now "${now}" --arg d "${today}" --argjson names "$(jq -c '[.[].labels.alertname] | unique' <<<"${candidates}")" '
         .dispatched += ($names | map({(.): $now}) | add)
         | .days = {($d): ((.days[$d] // 0) + 1)}' "${STATE}" >"${STATE}.tmp" && mv "${STATE}.tmp" "${STATE}"

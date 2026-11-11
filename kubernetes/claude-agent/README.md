@@ -89,7 +89,7 @@ the PVC. The cost: "always allow" from your phone won't stick — add the rule t
 ## Alert dispatch
 
 When Alertmanager fires, the pod starts a Remote Control session to
-investigate. It shows in the app as `alert-<MMDD-HHMM>-<alertname>`, runs
+investigate. It shows in the app under a title Claude generates from the prompt, and in `claude agents` as `alert-<MMDD-HHMM>-<alertname>` (set with `--name`, which is what the dispatcher keys on), runs
 in auto mode, may open PRs, and sends a push notification when it's done.
 
 ```
@@ -117,6 +117,7 @@ change takes effect within about a minute, with no restart.
 | `DEDUPE_HOURS` | `6` | An alert name that already started a session is skipped for this long. |
 | `IDLE_STOP_HOURS` | `12` | An `alert-*` session idle for longer than this is stopped, to give back its memory and capacity slot. |
 | `IGNORE_ALERTS` | `Watchdog InfoInhibitor` | Never investigated. |
+| `PERMISSION_MODE` | `auto` | Passed to `--permission-mode`. `auto` never prompts, but refuses risky actions. `bypassPermissions` removes even that, for sessions that read logs containing outside text (indexer responses, release names) while holding an all-repos GitHub token and internet access. |
 
 A new batch also waits while an `alert-*` session is still running, or while
 all `CAPACITY` slots are in use. It's held on the PVC and retried, not dropped.
