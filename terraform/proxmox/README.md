@@ -38,3 +38,24 @@ to the nats-mqtt leaf as MQTT user `proxmox`; HA discovers it as
 
 There is no `nvidia-smi` here (the iGPU is passed through to `talos-worker-0`),
 so the GPU fields are skipped.
+
+## Changing control-plane VM hardware
+
+The three `talos-cp-*` VMs set `reboot_after_update = false`. Without it, an
+apply that changes memory or CPU restarts all three VMs one after another, and
+doesn't wait for etcd to rejoin before moving to the next. With three members,
+etcd can only lose one at a time.
+
+After applying, Proxmox shows the change as pending. It only takes effect on a
+**Proxmox-level** restart (UI → Reboot, or `qm reboot <vmid>`). `talosctl
+reboot` won't do it: it restarts the guest without restarting the QEMU process.
+Go one node at a time:
+
+1. Reboot `talos-cp-0` (630) in Proxmox.
+2. Wait for `kubectl get node talos-cp-0` to show `Ready`, and for
+   `talosctl -n 10.0.0.10 etcd status` to list all three members healthy.
+3. Repeat for `talos-cp-1` (633, `10.0.0.11`), then `talos-cp-2` (634,
+   `10.0.0.12`).
+
+Memory budget on the 64 GB host: the control planes take 3 × 6 GB and the
+workers 5 × 8 GB, 58 GB in total.
