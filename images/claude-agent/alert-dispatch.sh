@@ -69,7 +69,7 @@ clear_batch() {
 }
 
 dispatch() {
-  local now today ignore candidates names count sessions busy total name prompt
+  local now today ignore candidates names count sessions busy working reason name prompt
   now=$(date +%s)
   today=$(date +%F)
   ignore=$(printf '%s\n' ${IGNORE_ALERTS} | jq -R . | jq -sc .)
@@ -99,13 +99,22 @@ dispatch() {
     return
   fi
 
+  # Only sessions doing work count. Idle ones (finished alert sessions, chats
+  # left open in the app) cost nothing, and --bg sessions don't take one of
+  # the Remote Control server's CAPACITY slots anyway.
   sessions=$(sessions_json)
   busy=$(jq '[.[] | select((.name // "") | startswith("alert-")) | select(.status != "idle")] | length' <<<"${sessions}")
-  total=$(jq 'length' <<<"${sessions}")
-  if [ "${busy}" -gt 0 ] || [ "${total}" -ge "${CAPACITY:-3}" ]; then
-    log "deferring ${count} alert(s): ${busy} alert session(s) running, ${total}/${CAPACITY:-3} sessions"
+  working=$(jq '[.[] | select(.status != "idle")] | length' <<<"${sessions}")
+  if [ "${busy}" -gt 0 ] || [ "${working}" -ge "${CAPACITY:-3}" ]; then
+    reason="${busy} alert session(s) running, ${working}/${CAPACITY:-3} sessions busy"
+    # The loop comes round every few seconds; only log when the reason changes.
+    if [ "${reason}" != "${LAST_DEFER:-}" ]; then
+      log "deferring ${count} alert(s): ${reason}"
+      LAST_DEFER="${reason}"
+    fi
     return
   fi
+  LAST_DEFER=
 
   name="alert-$(date +%m%d-%H%M)-$(jq -r '.[0].labels.alertname' <<<"${candidates}")"
   prompt="Alertmanager fired the alerts below and the alert dispatcher started this session automatically. Ed is probably not watching.
