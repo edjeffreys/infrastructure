@@ -86,6 +86,55 @@ the PVC. The cost: "always allow" from your phone won't stick — add the rule t
 | `kubernetes` | `kubernetes-mcp-server` | `cluster_provider_strategy = "in-cluster"` and `read_only = true`, in the `kubernetes-mcp-server.toml` key of `claude-agent-mcp`: 0.1.0 dropped the equivalent CLI flags. Uses the pod's ServiceAccount, so it inherits the RBAC above — the flag is defence in depth, not the boundary. Pre-allowed in settings, so it never prompts. |
 | `github` | `github-mcp-server` | `stdio`, authenticated with `${GH_TOKEN}`. Deliberately *not* `--read-only`: the token's own scope (one repo, contents + PRs) is the boundary, and PR creation is the point. Writes still prompt on your phone. |
 
+## Alert dispatch
+
+When Alertmanager fires, the pod starts a Remote Control session to
+investigate. It shows in the app under a title Claude generates from the prompt, and in `claude agents` as `alert-<MMDD-HHMM>-<alertname>` (set with `--name`, which is what the dispatcher keys on), runs
+in auto mode, may open PRs, and sends a push notification when it's done.
+
+```
+Alertmanager → alert-relay → NATS ALERTS → alert-dispatch (this pod) → claude --bg --remote-control
+```
+
+`alert-dispatch` (`images/claude-agent/alert-dispatch.sh`) runs alongside the
+Remote Control server in the same container. It reads a NACK `Consumer`
+(`consumer.yaml`) that only receives `alerts.firing.warning.>` and
+`alerts.firing.critical.>` and starts at `new`, so the 30 days of history in
+the stream are never replayed. It logs to `~/.alert-dispatch/dispatch.log` on
+the PVC.
+
+### Usage limits
+
+These are the limits that stop a flood of alerts using up your Claude usage.
+They are set in `alert-dispatch.yaml` and re-read every loop, so a merged
+change takes effect within about a minute, with no restart.
+
+| Setting | Default | Effect |
+|---------|---------|--------|
+| `ENABLED` | `true` | Off switch. While `false`, alerts are acked and dropped, so nothing piles up. |
+| `BATCH_SECONDS` | `180` | After the first alert, wait this long and put everything that fired into one session. A cluster-wide blip becomes one investigation, not dozens. |
+| `DAILY_CAP` | `3` | Maximum sessions per day. Past it, alerts are logged and dropped. Pushover still tells you about them. |
+| `DEDUPE_HOURS` | `6` | An alert name that already started a session is skipped for this long. |
+| `IDLE_STOP_HOURS` | `12` | An `alert-*` session idle for longer than this is stopped, to give back its memory and capacity slot. |
+| `IGNORE_ALERTS` | `Watchdog InfoInhibitor` | Never investigated. |
+| `PERMISSION_MODE` | `auto` | Passed to `--permission-mode`. `auto` never prompts, but refuses risky actions. `bypassPermissions` removes even that, for sessions that read logs containing outside text (indexer responses, release names) while holding an all-repos GitHub token and internet access. |
+
+A new batch also waits while an `alert-*` session is still running, or while
+all `CAPACITY` slots are in use. It's held on the PVC and retried, not dropped.
+
+### Why it runs in the claude container
+
+`claude agents` and `claude stop` only see sessions in their own PID
+namespace. A sidecar couldn't check whether an alert session is still running
+or stop a stale one.
+
+### Adding NATS access for this
+
+This pod is a NATS client like any other: `certificate.yaml`, a
+`CN=claude-agent.claude-agent` user in `kubernetes/nats/nats-values.yaml`
+that may only pull from and ack its own consumer, `claude-agent` in the NATS
+`allow-client-ingress` policy, and `allow-nats-egress` here.
+
 ## Bootstrap
 
 ### 1. Create the 1Password item

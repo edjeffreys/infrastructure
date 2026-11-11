@@ -54,3 +54,23 @@ spec:
   egress:
     - toEntities:
         - world
+
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-nats-egress
+  namespace: claude-agent
+spec:
+  endpointSelector:
+    matchLabels:
+      app: claude-agent
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: nats
+            app.kubernetes.io/component: nats
+      toPorts:
+        - ports:
+            - port: "4222"
+              protocol: TCP

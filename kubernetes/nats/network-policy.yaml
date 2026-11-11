@@ -69,6 +69,8 @@ spec:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: alert-relay
         - matchLabels:
+            k8s:io.kubernetes.pod.namespace: claude-agent
+        - matchLabels:
             k8s:io.kubernetes.pod.namespace: energy-telemetry
       toPorts:
         - ports:

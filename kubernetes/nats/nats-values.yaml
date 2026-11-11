@@ -61,6 +61,14 @@ config:
               publish: ["alerts.>"]
               # JetStream publish acks come back on an inbox.
               subscribe: ["_INBOX.>"]
+          - user: "CN=claude-agent.claude-agent"
+            permissions:
+              publish:
+                - "$JS.API.INFO"
+                - "$JS.API.CONSUMER.INFO.ALERTS.claude-agent"
+                - "$JS.API.CONSUMER.MSG.NEXT.ALERTS.claude-agent"
+                - "$JS.ACK.ALERTS.claude-agent.>"
+              subscribe: ["_INBOX.>"]
           - user: "CN=energy-telemetry.energy-telemetry"
             permissions:
               publish:

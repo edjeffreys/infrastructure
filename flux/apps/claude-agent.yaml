@@ -6,6 +6,8 @@ metadata:
 spec:
   interval: 10m
   path: ./kubernetes/claude-agent
+  dependsOn:
+    - name: nack
   prune: true
   wait: true
   timeout: 5m

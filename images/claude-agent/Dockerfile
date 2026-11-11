@@ -10,6 +10,8 @@ ARG GH_VERSION=2.103.3
 ARG GITHUB_MCP_VERSION=2.1.0
 # renovate: datasource=github-releases depName=containers/kubernetes-mcp-server extractVersion=^v(?<version>.+)$
 ARG K8S_MCP_VERSION=0.1.2
+# renovate: datasource=github-releases depName=nats-io/natscli extractVersion=^v(?<version>.+)$
+ARG NATS_CLI_VERSION=0.5.1
 # renovate: datasource=github-releases depName=rust-lang/rust
 ARG RUST_VERSION=1.99.1
 # renovate: datasource=github-tags depName=ziglang/zig
@@ -74,12 +76,21 @@ RUN arch="$(dpkg --print-architecture)" \
  && github-mcp-server --version \
  && kubernetes-mcp-server --version
 
+RUN arch="$(dpkg --print-architecture)" \
+ && curl -fsSLo /tmp/nats.zip \
+      "https://github.com/nats-io/natscli/releases/download/v${NATS_CLI_VERSION}/nats-${NATS_CLI_VERSION}-linux-${arch}.zip" \
+ && unzip -j /tmp/nats.zip "*/nats" -d /tmp/nats \
+ && install -m 0755 /tmp/nats/nats /usr/local/bin/nats \
+ && rm -rf /tmp/nats /tmp/nats.zip \
+ && nats --version
+
 RUN npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
  && npm cache clean --force
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY auth-check.sh /usr/local/bin/auth-check
-RUN chmod 0755 /usr/local/bin/entrypoint.sh /usr/local/bin/auth-check
+COPY alert-dispatch.sh /usr/local/bin/alert-dispatch
+RUN chmod 0755 /usr/local/bin/entrypoint.sh /usr/local/bin/auth-check /usr/local/bin/alert-dispatch
 
 # node:22 ships uid/gid 1000 as "node"; the Deployment pins the same numbers.
 USER 1000:1000
