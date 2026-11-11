@@ -115,12 +115,14 @@ change takes effect within about a minute, with no restart.
 | `BATCH_SECONDS` | `180` | After the first alert, wait this long and put everything that fired into one session. A cluster-wide blip becomes one investigation, not dozens. |
 | `DAILY_CAP` | `3` | Maximum sessions per day. Past it, alerts are logged and dropped. Pushover still tells you about them. |
 | `DEDUPE_HOURS` | `6` | An alert name that already started a session is skipped for this long. |
-| `IDLE_STOP_HOURS` | `12` | An `alert-*` session idle for longer than this is stopped, to give back its memory and capacity slot. |
+| `IDLE_STOP_HOURS` | `12` | An `alert-*` session started longer ago than this and now idle is stopped, to give back its memory. |
 | `IGNORE_ALERTS` | `Watchdog InfoInhibitor` | Never investigated. |
 | `PERMISSION_MODE` | `auto` | Passed to `--permission-mode`. `auto` never prompts, but refuses risky actions. `bypassPermissions` removes even that, for sessions that read logs containing outside text (indexer responses, release names) while holding an all-repos GitHub token and internet access. |
 
-A new batch also waits while an `alert-*` session is still running, or while
-all `CAPACITY` slots are in use. It's held on the PVC and retried, not dropped.
+A new batch also waits while an `alert-*` session is still busy, or while
+`CAPACITY` sessions are busy. Idle sessions don't count: a finished alert
+session or a chat left open in the app would otherwise hold the slot for
+`IDLE_STOP_HOURS`. The batch is held on the PVC and retried, not dropped.
 
 ### Why it runs in the claude container
 
