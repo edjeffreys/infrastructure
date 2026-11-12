@@ -85,6 +85,11 @@ patches:
           validSubnets:
             - 10.0.0.0/8
             - 2a0e:cb01:ca:fe00::/56
+        # The default (85/80) only prunes images after LonghornNodeStorageWarning
+        # (80% of the shared EPHEMERAL disk) has already fired.
+        extraConfig:
+          imageGCHighThresholdPercent: 75
+          imageGCLowThresholdPercent: 65
 
   # The tailscale extension is configured by an ExtensionServiceConfig
   # document, NOT by writing /var/etc/tailscale/tailscaled.env via
