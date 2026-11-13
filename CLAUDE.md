@@ -51,12 +51,12 @@ governor, GPU persistence mode, and a cron on each publishing power to MQTT
 ### CNI: Cilium
 
 - Routing mode: VXLAN tunnel
-- **Kubernetes is dual-stack; Cilium is not — see the blocker in Key Gotchas.** `clusterPodNets` is `10.52.0.0/16` + `2a0e:cb01:ca:fe80::/60` and `clusterSvcNets` is `10.53.0.0/16` + `fd53:0:0:53::/112`, so the apiserver and controller-manager run dual-stack and a re-registered node gets a v6 podCIDR. Cilium keeps `enable-ipv6: "false"`, so none of it is used yet. The v6 pod range is a **GUA** on purpose: the goal is `enable-ipv6-masquerade: "false"`, letting Tailscale proxy pods advertise a direct endpoint instead of relaying every session. Nothing here is load-bearing while Cilium has IPv6 off
+- **Dual-stack, Cilium included** (on since Cilium 1.20.1; see Key Gotchas for why it needed that). `clusterPodNets` is `10.52.0.0/16` + `2a0e:cb01:ca:fe80::/60` and `clusterSvcNets` is `10.53.0.0/16` + `fd53:0:0:53::/112`; Cilium runs `enable-ipv6: "true"` with `enable-ipv6-masquerade: "false"`. The v6 pod range is a **GUA** on purpose: unmasqueraded, Tailscale proxy pods advertise a direct endpoint instead of relaying every session. Pod-to-pod v6 rides the v4 VXLAN tunnel, so no node VLAN needs v6 for it. The gateway routes each non-PIA node's pod /64 to that node (static routes in `edjeffreys/firewall`, private); PIA nodes get no route and have no v6 default route, so their pods cannot send v6 outside the cluster
 - IPv4 must be listed first in `clusterPodNets`, `clusterSvcNets` *and* `machine.kubelet.nodeIP.validSubnets` — Talos fails config parsing if the family order differs between them
 - MTU `1450` in `cilium-config` (overrides auto-detect — `tailscale0` on nodes has MTU 1280; Cilium would use it for all pods, breaking large downloads)
 - `CiliumClusterwideNetworkPolicy` `default-deny`: cluster-wide deny in both directions, excludes `kube-system`, `kube-public`, `kube-node-lease`, `cilium-secrets` — **applied**, managed by `flux/apps/cilium.yaml`
 - Every namespace needs `CiliumNetworkPolicy` — see **Network Policy Conventions**
-- `coredns-custom` ConfigMap in `kube-system` blocks AAAA responses, so workloads resolve v4 only — correct while Cilium has IPv6 off, and deliberate afterwards too. See the Key Gotchas entry
+- `coredns-custom` ConfigMap in `kube-system` blocks AAAA responses, so workloads resolve v4 only: v6 carries only traffic to literal addresses, such as Tailscale's. Deliberate; see the Key Gotchas entry
 - Hubble UI exposed via Tailscale at `hubble.tail5f17e.ts.net`
 
 ---
