@@ -50,3 +50,33 @@ at 60 W. `nvidia-smi -pm 1` drops it to P8 at 20 W. That does not survive a
 reboot, so it is a **Post Init** command under System → Advanced Settings →
 Init/Shutdown Scripts. Software cannot get it lower: removing it from the PCI
 bus leaves it powered but unmanaged. Pulling the card saves the last 20 W.
+
+## Static routes: replies to cluster networks leave via Storage
+
+TrueNAS has two legs: Management (10.0.0.94, default route) and Storage
+(10.60.0.233). A client on another VLAN that mounts the Storage address would
+otherwise get its replies out of the Management leg. The gateway then sees
+Management → client-zone traffic that no automatic return rule covers, and
+NFS hangs ("server 10.60.0.233 not responding", or `mount.nfs: Connection
+timed out`).
+
+So each cluster network has a static route via the Storage gateway, under
+Network → Global Configuration → Static Routes:
+
+| Destination | Gateway | For |
+|---|---|---|
+| `10.11.0.0/24` | `10.60.0.1` | DMZ workers |
+| `10.200.0.0/24` | `10.60.0.1` | PIA workers (added 2026-11; until then a Management → PIA allow-all hid the asymmetry, and removing it broke PIA NFS) |
+
+A new VLAN that mounts NFS or SMB from 10.60.0.233 needs its own row. Check
+with `ip route get <client-ip>` in the TrueNAS shell: it should say
+`via 10.60.0.1`.
+
+The general fix would be source-based routing, so anything sent from
+10.60.0.233 leaves via Storage whatever the destination. TrueNAS's UI has no
+option for it; it would be a Post Init script:
+
+```bash
+ip route replace default via 10.60.0.1 dev <storage-iface> table 100
+ip rule add from 10.60.0.233 lookup 100 priority 100
+```
