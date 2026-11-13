@@ -80,11 +80,12 @@ patches:
       kubelet:
         nodeIP:
           # Without this kubelet can register a tailscale0 address (100.64/10,
-          # fd7a::/48) as the node IP. No PIA prefix here on purpose: that VLAN
-          # has IPv6 removed, so its nodes register v4-only.
+          # fd7a::/48) as the node IP. The PIA prefix is a ULA with no route out
+          # (see the PIA nodes below), so registering it is safe.
           validSubnets:
             - 10.0.0.0/8
             - 2a0e:cb01:ca:fe00::/56
+            - fd06:41f2:a8da:200::/64
         # The default (85/80) only prunes images after LonghornNodeStorageWarning
         # (80% of the shared EPHEMERAL disk) has already fired.
         extraConfig:
@@ -210,6 +211,17 @@ nodes:
     patches:
       - |-
         machine:
+          # A ULA node address for Cilium, with no default route: RA is off on the
+          # PIA VLAN, and only the site prefix is routed. Pod v6 stays unroutable.
+          network:
+            interfaces:
+              - interface: ens18
+                dhcp: true
+                addresses:
+                  - fd06:41f2:a8da:200::10/64
+                routes:
+                  - network: 2a0e:cb01:ca::/48
+                    gateway: fd06:41f2:a8da:200::1
           kubelet:
             extraConfig:
               registerWithTaints:
@@ -229,6 +241,17 @@ nodes:
     patches:
       - |-
         machine:
+          # A ULA node address for Cilium, with no default route: RA is off on the
+          # PIA VLAN, and only the site prefix is routed. Pod v6 stays unroutable.
+          network:
+            interfaces:
+              - interface: ens18
+                dhcp: true
+                addresses:
+                  - fd06:41f2:a8da:200::11/64
+                routes:
+                  - network: 2a0e:cb01:ca::/48
+                    gateway: fd06:41f2:a8da:200::1
           kubelet:
             extraConfig:
               registerWithTaints:
