@@ -17,15 +17,15 @@ HA ◀── MQTT discovery sensors ◀── nats-mqtt ◀─leaf── homeass
 Every hour, on the hour, it takes the last hour of state from the `ENERGY`
 stream and works out the flow temperature that would have held the setpoint.
 It uses the curve's commanded flow, how warm the house actually got, and a
-radiator exponent of 1.3. The filters are the HA advisor's, so both give the
-same sample for the same hour. It skips hours with solar gain in the last 4 h,
-hot water use, outdoor above 12 °C, heating off, a setpoint or curve change in
-the last 3 h, or too little heat demand to measure.
+radiator exponent of 1.3. It skips hours with solar gain in the last 4 h,
+outdoor above 12 °C, heating off, a setpoint or curve change in the last 3 h,
+or too little heat demand to measure. Unlike the HA advisor, it keeps hours
+with hot-water use: see below.
 
 Every hour is stored on `heating.curve.sample` in `HEATING`, the skipped ones
 too, with the reason. The recommendation is a weighted least-squares fit of
 the Viessmann curve to the valid hours. It differs from the HA advisor in
-three ways:
+four ways:
 
 - **Weighting by outdoor temperature.** Each sample's weight is divided by the
   square root of its 2 °C bin's total. Mild hours outnumber cold ones by an
@@ -35,6 +35,13 @@ three ways:
 - **Time decay instead of a sample count.** The half-life is 30 days
   (`-half-life`). The HA advisor's 0.995 per valid sample forgets cold
   hours after about 200 valid hours, however long ago those were.
+- **Hot-water hours are ordinary hours.** The HA advisor skips any hour with
+  DHW gas use. That dates from when it read the measured flow temperature,
+  which DHW firing spikes because it is the boiler's common supply sensor. The
+  calculation uses the commanded flow, so DHW doesn't touch it. Any heat the
+  radiators miss during a cylinder reheat is part of normal operation, which
+  the curve has to cover anyway. Each sample records the hour's `dhw_gas` (in the
+  sensor's unit) as raw data only.
 - **The raw shortfall by bin.** `bins` gives the mean of required minus
   commanded flow per 2 °C band. It shows whether the curve in use runs hot or
   cold at each outdoor temperature, independent of the fit.
@@ -45,14 +52,14 @@ while the outdoor spread is too narrow to fit a slope, then `slope and shift`.
 ## Inputs
 
 All from `homeassistant/packages/statestream.yaml`. A missing one makes every
-hour `missing data`:
+hour `missing data`, except the supply temperature and DHW gas:
 
 | Entity | Used for |
 |---|---|
 | `sensor.house_temperature` | indoor, 1 h time-weighted mean |
 | `sensor.boiler_outside_temperature` | outdoor, 1 h mean |
-| `sensor.boiler_supply_temperature` | DHW spike detection (max) |
-| `sensor.boiler_dhw_gas_consumption_today` | DHW use (any rise in the hour) |
+| `sensor.boiler_supply_temperature` | recorded only; the calculation uses the commanded flow |
+| `sensor.boiler_dhw_gas_consumption_today` | recorded per hour as `dhw_gas` |
 | `sensor.heating_active_setpoint` | setpoint, and the 3 h change filter |
 | `number.boiler_heating_curve_slope`, `…_shift` | commanded curve, and the 3 h change filter |
 | `climate.boiler_heating` | must be `auto` |

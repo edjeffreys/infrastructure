@@ -44,6 +44,7 @@ type sample struct {
 	Indoor       float64   `json:"indoor"`
 	Outdoor      float64   `json:"outdoor"`
 	Supply       float64   `json:"supply"`
+	DHWGas       float64   `json:"dhw_gas"`
 	Setpoint     float64   `json:"setpoint"`
 	Slope        float64   `json:"slope"`
 	Shift        float64   `json:"shift"`
@@ -64,24 +65,26 @@ func (h history) get(entity string) *series {
 	return s
 }
 
-// evaluate computes the sample for the hour ending at end. The filters are
-// the HA advisor's, so the two can be compared while both run.
+// evaluate computes the sample for the hour ending at end. Unlike the HA
+// advisor it keeps hot-water hours: the commanded flow it works from is
+// unaffected by DHW firing, which only ever spiked the measured flow.
 func (h history) evaluate(end time.Time) sample {
 	from := end.Add(-time.Hour)
 	s := sample{Hour: end}
 
 	tin, ok1 := h.get(entHouse).mean(from, end)
 	tout, ok2 := h.get(entOutdoor).mean(from, end)
-	flow, ok3 := h.get(entSupply).mean(from, end)
+	flow, _ := h.get(entSupply).mean(from, end)
 	tset, ok4 := h.get(entSetpoint).numberAt(end)
 	slope, ok5 := h.get(entSlope).numberAt(end)
 	shift, ok6 := h.get(entShift).numberAt(end)
-	if !(ok1 && ok2 && ok3 && ok4 && ok5 && ok6) {
+	if !(ok1 && ok2 && ok4 && ok5 && ok6) {
 		s.Reason = "missing data"
 		return s
 	}
 	s.Indoor, s.Outdoor, s.Supply = round(tin, 2), round(tout, 2), round(flow, 2)
 	s.Setpoint, s.Slope, s.Shift = tset, slope, shift
+	s.DHWGas = round(h.get(entDHWGas).rise(from, end), 3)
 
 	curve := curveFlow(slope, shift, tout, tset)
 	mwt := curve - halfDT
@@ -89,7 +92,6 @@ func (h history) evaluate(end time.Time) sample {
 
 	climate, _ := h.get(entClimate).at(end)
 	solar, _ := h.get(entSolarGain).at(end)
-	supplyMax, _ := h.get(entSupply).max(from, end)
 	setpointChanged, _ := h.get(entSetpoint).lastChange(end)
 	curveChanged, _ := h.get(entSlope).lastChange(end)
 	if t, ok := h.get(entShift).lastChange(end); ok && t.After(curveChanged) {
@@ -103,8 +105,6 @@ func (h history) evaluate(end time.Time) sample {
 		s.Reason = "solar gain"
 	case tout > 12:
 		s.Reason = "too mild: boiler at minimum output"
-	case h.get(entDHWGas).rise(from, end) > 0 || supplyMax > curve+15:
-		s.Reason = "hot water used"
 	case end.Sub(setpointChanged) < 3*time.Hour:
 		s.Reason = "setpoint changed recently"
 	case end.Sub(curveChanged) < 3*time.Hour:
