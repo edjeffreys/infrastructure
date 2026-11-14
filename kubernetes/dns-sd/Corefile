@@ -11,15 +11,3 @@ guest.skaal.lan:53 {
     errors
     log
 }
-
-_dns-sd._udp.0.0.20.10.in-addr.arpa:53 {
-    file /etc/coredns/reverse-20.db
-    errors
-    log
-}
-
-_dns-sd._udp.0.0.110.10.in-addr.arpa:53 {
-    file /etc/coredns/reverse-110.db
-    errors
-    log
-}

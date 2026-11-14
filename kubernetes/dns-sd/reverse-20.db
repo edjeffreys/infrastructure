@@ -1,7 +1,0 @@
-$ORIGIN _dns-sd._udp.0.0.20.10.in-addr.arpa.
-$TTL 300
-@   IN SOA dns-sd.lan.skaal.lan. hostmaster.lan.skaal.lan. 1 3600 600 86400 300
-@   IN NS  dns-sd.lan.skaal.lan.
-
-b   IN PTR lan.skaal.lan.
-lb  IN PTR lan.skaal.lan.
