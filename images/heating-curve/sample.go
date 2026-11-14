@@ -66,8 +66,8 @@ func (h history) get(entity string) *series {
 }
 
 // evaluate computes the sample for the hour ending at end. Unlike the HA
-// advisor it keeps hot-water hours: the curve has to cover those interruptions
-// in normal use, and their cooling lands in later hours anyway.
+// advisor it keeps hot-water hours: the commanded flow it works from is
+// unaffected by DHW firing, which only ever spiked the measured flow.
 func (h history) evaluate(end time.Time) sample {
 	from := end.Add(-time.Hour)
 	s := sample{Hour: end}

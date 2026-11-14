@@ -35,14 +35,13 @@ four ways:
 - **Time decay instead of a sample count.** The half-life is 30 days
   (`-half-life`). The HA advisor's 0.995 per valid sample forgets cold
   hours after about 200 valid hours, however long ago those were.
-- **Hot-water hours count.** While the boiler reheats the cylinder the
-  radiators get nothing, so the house gets less than the curve commanded. The
-  HA advisor skips any hour with DHW gas use for that reason. It shouldn't: the
-  curve has to hold the target through normal hot-water use, so fitting only
-  uninterrupted hours biases it low. The house also responds over hours, so the
-  cooling lands in later hours, which were kept anyway. Each sample records the
-  hour's `dhw_gas` (the sensor's unit); `-exclude-dhw` fits without those hours
-  to compare.
+- **Hot-water hours are ordinary hours.** The HA advisor skips any hour with
+  DHW gas use. That dates from when it read the measured flow temperature,
+  which DHW firing spikes because it is the boiler's common supply sensor. The
+  calculation uses the commanded flow, so DHW doesn't touch it. Any heat the
+  radiators miss during a cylinder reheat is part of normal operation, which
+  the curve has to cover anyway. Each sample records the hour's `dhw_gas` (in the
+  sensor's unit) as raw data only.
 - **The raw shortfall by bin.** `bins` gives the mean of required minus
   commanded flow per 2 °C band. It shows whether the curve in use runs hot or
   cold at each outdoor temperature, independent of the fit.

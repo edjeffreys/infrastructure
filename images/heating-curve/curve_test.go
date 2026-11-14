@@ -118,23 +118,3 @@ func TestOldSamplesDecay(t *testing.T) {
 		t.Fatalf("90-day-old samples should weigh about 1/8: got %+v", r)
 	}
 }
-
-func TestFitExcludeDHW(t *testing.T) {
-	now := time.Date(2026, 11, 14, 12, 0, 0, 0, time.UTC)
-	var outdoors []float64
-	for i := 0; i < 48; i++ {
-		outdoors = append(outdoors, float64(i%12))
-	}
-	samples := synthetic(1.4, -4, outdoors, now)
-	for i := range samples[:30] {
-		samples[i].DHWGas = 0.2
-	}
-	cfg := testFit
-	cfg.ExcludeDHW = true
-	if r := fit(samples, now, 1.6, cfg); !strings.HasPrefix(r.Status, "collecting (18/") {
-		t.Fatalf("got %+v", r)
-	}
-	if r := fit(samples, now, 1.6, testFit); r.Status != "slope and shift" {
-		t.Fatalf("got %+v", r)
-	}
-}
