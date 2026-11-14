@@ -21,13 +21,6 @@ Guests on Hotspot search `guest.skaal.lan` instead. `guest.skaal.lan.db` answers
 step 1 for that domain with `lan.skaal.lan`, so guests then browse the same
 records as the LAN. The firewall allows Hotspot to reach both printers on 631.
 
-Apple devices also look for browse domains under their subnet.s reverse name
-(RFC 6763 §11), e.g. `b._dns-sd._udp.0.0.20.10.in-addr.arpa`. That does not
-depend on search domains, so it may work where they do not — with Tailscale on,
-where iOS and macOS ignore Tailscale-supplied search domains for browsing.
-`reverse-20.db` (LAN) and `reverse-110.db` (Hotspot) answer it with
-`lan.skaal.lan`. Experimental: confirm the queries arrive before relying on it.
-
 ## UniFi configuration
 
 UniFi's own DNS cannot hold PTR or SRV records, so it forwards just these
@@ -38,8 +31,6 @@ names here. Under **Settings → Policy Table → DNS**:
 | Forward Domain | `_dns-sd._udp.lan.skaal.lan` | `10.0.0.213` |
 | Forward Domain | `_tcp.lan.skaal.lan` | `10.0.0.213` |
 | Forward Domain | `_dns-sd._udp.guest.skaal.lan` | `10.0.0.213` |
-| Forward Domain | `_dns-sd._udp.0.0.20.10.in-addr.arpa` | `10.0.0.213` |
-| Forward Domain | `_dns-sd._udp.0.0.110.10.in-addr.arpa` | `10.0.0.213` |
 | A | `cups.lan.skaal.lan` | `10.0.0.212` |
 | A | `brother.lan.skaal.lan` | `10.100.0.44` |
 

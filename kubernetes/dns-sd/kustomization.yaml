@@ -13,5 +13,3 @@ configMapGenerator:
       - Corefile
       - lan.skaal.lan.db
       - guest.skaal.lan.db
-      - reverse-20.db
-      - reverse-110.db
