@@ -96,17 +96,26 @@ in auto mode, may open PRs, and sends a push notification when it's done.
 Alertmanager → alert-relay → NATS ALERTS → alert-dispatch (this pod) → claude --bg --remote-control
 ```
 
-`alert-dispatch` (`images/claude-agent/alert-dispatch.sh`) runs alongside the
+`alert-dispatch` (`alert-dispatch.sh`) runs alongside the
 Remote Control server in the same container. It reads a NACK `Consumer`
 (`consumer.yaml`) that only receives `alerts.firing.warning.>` and
 `alerts.firing.critical.>` and starts at `new`, so the 30 days of history in
 the stream are never replayed. It logs to `~/.alert-dispatch/dispatch.log` on
 the PVC.
 
+The script is not in the image. `kustomization.yaml` puts it in the
+`claude-agent-alert-dispatch` ConfigMap next to `config.env`. That ConfigMap
+is unhashed, so the kubelet updates the pod's mount in place. When the script
+sees its own file change, it exits, and `entrypoint.sh` starts the new version
+30s later. **A merged dispatcher fix is live within about two minutes, with no
+image build and no pod restart.** It used to be baked into the `:latest`
+image. Every fix then needed a CI build *and* a manual pod delete, which also
+killed every running session, so fixes sat merged but not deployed for days.
+
 ### Usage limits
 
 These are the limits that stop a flood of alerts using up your Claude usage.
-They are set in `alert-dispatch.yaml` and re-read every loop, so a merged
+They are set in `alert-dispatch.env` and re-read every loop, so a merged
 change takes effect within about a minute, with no restart.
 
 | Setting | Default | Effect |
@@ -116,6 +125,7 @@ change takes effect within about a minute, with no restart.
 | `DAILY_CAP` | `3` | Maximum sessions per day. Past it, alerts are logged and dropped. Pushover still tells you about them. |
 | `DEDUPE_HOURS` | `6` | An alert name that already started a session is skipped for this long. |
 | `IDLE_STOP_HOURS` | `12` | An `alert-*` session started longer ago than this and now idle is stopped, to give back its memory. |
+| `ALERT_MAX_HOURS` | `3` | An `alert-*` session older than this no longer holds back new batches, even if it still looks busy. A backstop against a stuck session blocking dispatch for good. |
 | `IGNORE_ALERTS` | `Watchdog InfoInhibitor` | Never investigated. |
 | `PERMISSION_MODE` | `auto` | Passed to `--permission-mode`. `auto` never prompts, but refuses risky actions. `bypassPermissions` removes even that, for sessions that read logs containing outside text (indexer responses, release names) while holding an all-repos GitHub token and internet access. |
 
@@ -123,6 +133,13 @@ A new batch also waits while an `alert-*` session is still busy, or while
 `CAPACITY` sessions are busy. Idle sessions don't count: a finished alert
 session or a chat left open in the app would otherwise hold the slot for
 `IDLE_STOP_HOURS`. The batch is held on the PVC and retried, not dropped.
+
+`--bg` sessions report `.state` in `claude agents --json`, not `.status`, and
+only `working`-type states count. On 2026-11-12, `claude`'s background daemon
+retired a finished alert session and exited before it wrote `done` to
+`~/.claude/jobs/<id>/state.json`. The session was listed as `blocked`
+forever, with no process behind it. The old `.status != "idle"` check counted
+it as busy, and every alert for two days was deferred.
 
 ### Why it runs in the claude container
 
