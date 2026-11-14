@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -39,6 +40,13 @@ type config struct {
 }
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "import-ha" {
+		if err := importHA(os.Args[2:], os.Stdout); err != nil {
+			slog.Error("import-ha", "err", err)
+			os.Exit(1)
+		}
+		return
+	}
 	var c config
 	flag.StringVar(&c.url, "nats-url", "tls://nats.nats.svc:4222", "NATS server")
 	flag.StringVar(&c.ca, "nats-ca", "/etc/nats-ca/ca.crt", "CA bundle")
@@ -269,6 +277,8 @@ func (e *engine) loadSamples(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	// A later message for the same hour wins, so `import-ha` can overwrite hours.
+	byHour := map[time.Time]sample{}
 	for {
 		m, err := cons.Next(jetstream.FetchMaxWait(5 * time.Second))
 		if err != nil {
@@ -277,17 +287,22 @@ func (e *engine) loadSamples(ctx context.Context) error {
 		var smp sample
 		if err := json.Unmarshal(m.Data(), &smp); err != nil {
 			slog.Warn("skipping unreadable sample", "err", err)
-		} else if n := len(e.samples); n == 0 || smp.Hour.After(e.samples[n-1].Hour) {
-			e.samples = append(e.samples, smp)
+		} else {
+			byHour[smp.Hour.UTC()] = smp
 		}
 		md, err := m.Metadata()
 		if err != nil {
 			return err
 		}
 		if md.NumPending == 0 {
-			return nil
+			break
 		}
 	}
+	for _, smp := range byHour {
+		e.samples = append(e.samples, smp)
+	}
+	sort.Slice(e.samples, func(i, j int) bool { return e.samples[i].Hour.Before(e.samples[j].Hour) })
+	return nil
 }
 
 func (e *engine) catchUp(ctx context.Context) {

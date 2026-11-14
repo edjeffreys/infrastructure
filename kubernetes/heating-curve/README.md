@@ -106,6 +106,29 @@ kubectl -n nats exec -it deploy/nats-box -- nats stream purge HEATING
 kubectl -n heating-curve delete pod -l app=heating-curve
 ```
 
+## Importing from HA history
+
+When an input was missing from the bus but HA recorded it, as before the
+statestream deploy on 2026-11-14, `import-ha` recomputes those hours from HA's
+recorder instead. It writes one sample per line to stdout. Publish them to
+`HEATING`, then restart the pod, which loads them: a later sample for the same
+hour replaces the earlier one.
+
+It runs wherever both HA and the NATS hub are reachable. In practice that's a
+laptop with an HA long-lived token and a NATS context as `CN=ed.nats`; the
+service's own identity can do neither.
+
+```bash
+export HA_TOKEN=…   # HA profile → Security → Long-lived access tokens
+docker run --rm -e HA_TOKEN ghcr.io/edjeffreys/heating-curve:latest import-ha -days 7 > samples.jsonl
+nats pub heating.curve.sample --send-on newline --jetstream < samples.jsonl
+kubectl -n heating-curve delete pod -l app=heating-curve
+```
+
+`-ha-url` defaults to `https://home.skaal.dev`. `go run ./images/heating-curve
+import-ha` works instead of Docker. The import reports the hour range and the
+valid count on stderr, plus a warning for any entity HA has no history for.
+
 ## Checking it
 
 ```bash
