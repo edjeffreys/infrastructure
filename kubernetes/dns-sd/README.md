@@ -32,14 +32,16 @@ names here. Under **Settings → Policy Table → DNS**:
 | Forward Domain | `_tcp.lan.skaal.lan` | `10.0.0.213` |
 | Forward Domain | `_dns-sd._udp.guest.skaal.lan` | `10.0.0.213` |
 | A | `cups.lan.skaal.lan` | `10.0.0.212` |
+| A | `brother.lan.skaal.lan` | `10.100.0.44` |
 
 `_tcp.lan.skaal.lan` rather than `_ipp._tcp.lan.skaal.lan` so a future
 service needs a record here and nothing in UniFi.
 
-The A record lives in UniFi, not in the zone file, because UniFi would never
-forward `cups.lan.skaal.lan` here. The Brother's SRV target,
-`printer.iot.skaal.lan`, needs no entry: UniFi already resolves it from the
-printer's DHCP hostname, so renaming the printer breaks it.
+The A records live in UniFi, not in the zone file, because UniFi would never
+forward `cups.lan.skaal.lan` or `brother.lan.skaal.lan` here. The Brother stays
+on IoT; its SRV target is a `lan.skaal.lan` name rather than
+`printer.iot.skaal.lan` because tailnet split DNS only covers `lan.skaal.lan`,
+so with Tailscale on the IoT name never resolves and iOS drops the printer.
 
 With these records, UniFi's mDNS proxy has printer services switched off, so
 the printers' own adverts never reach the phones. A printer advertised here
