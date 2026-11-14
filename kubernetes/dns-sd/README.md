@@ -17,6 +17,10 @@ mDNS. It asks:
 
 All but the last are in `lan.skaal.lan.db`.
 
+Guests on Hotspot search `guest.skaal.lan` instead. `guest.skaal.lan.db` answers
+step 1 for that domain with `lan.skaal.lan`, so guests then browse the same
+records as the LAN. The firewall allows Hotspot to reach both printers on 631.
+
 ## UniFi configuration
 
 UniFi's own DNS cannot hold PTR or SRV records, so it forwards just these
@@ -26,6 +30,7 @@ names here. Under **Settings → Policy Table → DNS**:
 |---|---|---|
 | Forward Domain | `_dns-sd._udp.lan.skaal.lan` | `10.0.0.213` |
 | Forward Domain | `_tcp.lan.skaal.lan` | `10.0.0.213` |
+| Forward Domain | `_dns-sd._udp.guest.skaal.lan` | `10.0.0.213` |
 | A | `cups.lan.skaal.lan` | `10.0.0.212` |
 
 `_tcp.lan.skaal.lan` rather than `_ipp._tcp.lan.skaal.lan` so a future
@@ -44,7 +49,7 @@ whose `URF=` it cannot use.
 
 ## Zone file
 
-The zone claims all of `lan.skaal.lan` but only ever receives the forwarded
+Each zone claims all of its domain but only ever receives the forwarded
 subdomains, so its SOA and NS records are never seen by clients. Queries
 outside the zone get `REFUSED`; there is no forwarding and no egress.
 

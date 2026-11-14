@@ -1,0 +1,8 @@
+$ORIGIN guest.skaal.lan.
+$TTL 300
+@                          IN SOA dns-sd.lan.skaal.lan. hostmaster.lan.skaal.lan. 1 3600 600 86400 300
+@                          IN NS  dns-sd.lan.skaal.lan.
+
+; Guests browse their own search domain; point them at the LAN's records.
+b._dns-sd._udp             IN PTR lan.skaal.lan.
+lb._dns-sd._udp            IN PTR lan.skaal.lan.
