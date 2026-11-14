@@ -1,0 +1,18 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: heating-curve
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./kubernetes/heating-curve
+  prune: true
+  wait: true
+  timeout: 5m
+  dependsOn:
+    - name: homelab-ca
+    - name: nack
+    - name: energy-telemetry
+  sourceRef:
+    kind: GitRepository
+    name: infrastructure

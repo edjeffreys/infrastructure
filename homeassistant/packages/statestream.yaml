@@ -9,5 +9,11 @@ mqtt_statestream:
       - binary_sensor.boiler_*
       - number.boiler_*
       - sensor.*_gas_usage_today
+      - sensor.*_ht_temperature
     entities:
       - sensor.heating_active_setpoint
+      - sensor.house_temperature
+      - climate.boiler_heating
+      - binary_sensor.recent_solar_gain
+      - binary_sensor.heating_cutoff_active
+      - input_number.heating_target_normal

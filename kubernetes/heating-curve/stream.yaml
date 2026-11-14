@@ -1,0 +1,12 @@
+apiVersion: jetstream.nats.io/v1beta2
+kind: Stream
+metadata:
+  name: heating
+  namespace: heating-curve
+spec:
+  name: HEATING
+  subjects: ["heating.curve.>"]
+  storage: file
+  replicas: 3
+  maxBytes: 67108864
+  preventDelete: true

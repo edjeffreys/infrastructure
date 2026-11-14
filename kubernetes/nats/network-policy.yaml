@@ -72,6 +72,8 @@ spec:
             k8s:io.kubernetes.pod.namespace: claude-agent
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: energy-telemetry
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: heating-curve
       toPorts:
         - ports:
             - port: "4222"
