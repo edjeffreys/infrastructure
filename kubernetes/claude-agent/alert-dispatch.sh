@@ -36,6 +36,7 @@ load_config() {
   BATCH_SECONDS=180
   DEDUPE_HOURS=6
   IDLE_STOP_HOURS=12
+  ALERT_MAX_HOURS=3
   IGNORE_ALERTS="Watchdog InfoInhibitor"
   PERMISSION_MODE=auto
   # shellcheck disable=SC1090
@@ -53,13 +54,25 @@ sessions_json() {
   claude agents --json 2>/dev/null || echo '[]'
 }
 
+# --bg sessions report .state, not .status. The bg daemon can exit before it
+# persists "done", leaving a dead session listed as "blocked" forever.
+JQ_DEFS='
+  def alert: (.name // "") | startswith("alert-");
+  def working:
+    if .kind == "background"
+    then (.state // "") as $s | ["blocked", "done", "stopped", "failed", "cancelled", "completed", "killed"] | index([$s]) | not
+    else (.status // "idle") != "idle"
+    end;
+'
+
 stop_stale_sessions() {
   local cutoff_ms=$(( ($(date +%s) - IDLE_STOP_HOURS * 3600) * 1000 ))
-  sessions_json | jq -r --argjson cutoff "${cutoff_ms}" \
-    '.[] | select((.name // "") | startswith("alert-")) | select(.status == "idle" and .startedAt < $cutoff) | .sessionId' \
+  sessions_json | jq -r --argjson cutoff "${cutoff_ms}" "${JQ_DEFS}"'
+      .[] | select(alert and (working | not) and .startedAt < $cutoff) | .sessionId' \
     | while read -r id; do
-        log "stopping idle alert session ${id} (older than ${IDLE_STOP_HOURS}h)"
-        claude stop "${id}" >/dev/null 2>&1 || true
+        if claude stop "${id}" >/dev/null 2>&1; then
+          log "stopped idle alert session ${id} (older than ${IDLE_STOP_HOURS}h)"
+        fi
       done
 }
 
@@ -102,9 +115,11 @@ dispatch() {
   # Only sessions doing work count. Idle ones (finished alert sessions, chats
   # left open in the app) cost nothing, and --bg sessions don't take one of
   # the Remote Control server's CAPACITY slots anyway.
+  # ALERT_MAX_HOURS is the backstop for a stuck session that still looks busy.
   sessions=$(sessions_json)
-  busy=$(jq '[.[] | select((.name // "") | startswith("alert-")) | select(.status != "idle")] | length' <<<"${sessions}")
-  working=$(jq '[.[] | select(.status != "idle")] | length' <<<"${sessions}")
+  busy=$(jq --argjson cutoff "$(( (now - ALERT_MAX_HOURS * 3600) * 1000 ))" "${JQ_DEFS}"'
+      [.[] | select(alert and working and .startedAt >= $cutoff)] | length' <<<"${sessions}")
+  working=$(jq "${JQ_DEFS}"'[.[] | select(working)] | length' <<<"${sessions}")
   if [ "${busy}" -gt 0 ] || [ "${working}" -ge "${CAPACITY:-3}" ]; then
     reason="${busy} alert session(s) running, ${working}/${CAPACITY:-3} sessions busy"
     # The loop comes round every few seconds; only log when the reason changes.
@@ -137,8 +152,15 @@ $(jq -c '.[] | {status, labels, annotations, startsAt}' <<<"${candidates}")"
   clear_batch
 }
 
+SELF_SUM=$(md5sum <"$0")
 log "started"
 while true; do
+  # The script is mounted from a ConfigMap; exiting lets entrypoint.sh rerun
+  # the new version, with no image build or pod restart.
+  if [ "$(md5sum <"$0" 2>/dev/null)" != "${SELF_SUM}" ]; then
+    log "script changed; restarting"
+    exit 0
+  fi
   load_config
   stop_stale_sessions
 

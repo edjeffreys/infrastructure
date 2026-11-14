@@ -89,8 +89,7 @@ RUN npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY auth-check.sh /usr/local/bin/auth-check
-COPY alert-dispatch.sh /usr/local/bin/alert-dispatch
-RUN chmod 0755 /usr/local/bin/entrypoint.sh /usr/local/bin/auth-check /usr/local/bin/alert-dispatch
+RUN chmod 0755 /usr/local/bin/entrypoint.sh /usr/local/bin/auth-check
 
 # node:22 ships uid/gid 1000 as "node"; the Deployment pins the same numbers.
 USER 1000:1000

@@ -88,7 +88,7 @@ done
 # In this container, not a sidecar: `claude agents` and `claude stop` only see
 # sessions in the same PID namespace, and the dispatcher needs both.
 if [ -f /etc/alert-dispatch/config.env ]; then
-  ( while true; do /usr/local/bin/alert-dispatch; sleep 30; done ) &
+  ( while true; do bash /etc/alert-dispatch/alert-dispatch.sh; sleep 30; done ) &
 fi
 
 echo "==> starting Remote Control server on $(hostname) in ${PROJECTS_DIR} (capacity ${CAPACITY:-3})"
