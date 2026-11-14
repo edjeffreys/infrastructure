@@ -201,6 +201,49 @@ views:
       grid_options:
         columns: full
   - type: grid
+    cards:
+    - type: heading
+      heading: Curve advisor (heating-curve service)
+      icon: mdi:chart-bell-curve-cumulative
+    - type: markdown
+      content: |-
+        {% set s = 'sensor.heating_curve_advisor_status' %}
+        {% set last = state_attr(s, 'last_sample') %}
+        {% set rs = states('sensor.heating_curve_advisor_recommended_slope') %}
+        {% set rh = states('sensor.heating_curve_advisor_recommended_shift') %}
+        {% if not has_value(s) %}
+        Not reporting. See `kubernetes/heating-curve/README.md`.
+        {% else %}
+        **Status:** {{ states(s) }}
+
+        **Last hour:** {{ last.reason if last else '—' }}{% if last and last.valid %} — needed {{ last.required_flow }} °C flow at {{ last.outdoor | round(1) }} °C outside{% endif %}
+
+        **Samples:** {{ states('sensor.heating_curve_advisor_samples') }}{% if state_attr(s, 'outdoor_min') is not none %} (outdoor {{ state_attr(s, 'outdoor_min') }} to {{ state_attr(s, 'outdoor_max') }} °C, fit error ±{{ state_attr(s, 'residual_sd') }} °C){% endif %}
+
+        | | Current | Recommended |
+        |:--|--:|--:|
+        | Slope | {{ state_attr(s, 'current_slope') }} | {{ rs if has_value('sensor.heating_curve_advisor_recommended_slope') else '—' }} |
+        | Shift | {{ state_attr(s, 'current_shift') | int(0) }} | {{ rh | int if has_value('sensor.heating_curve_advisor_recommended_shift') else '—' }} |
+
+        Flow temperature at a {{ state_attr(s, 'setpoint') | int(19) }} °C setpoint:
+
+        | Outside | Current curve | Recommended |
+        |:--|--:|--:|
+        {% for r in state_attr(s, 'flow_table') or [] -%}
+        | {{ r.outdoor | int }} °C | {{ r.current }} °C | {{ (r.recommended ~ ' °C') if r.recommended is not none else '—' }} |
+        {% endfor %}
+
+        How the current curve did, by outside temperature (positive: it ran cold):
+
+        | Outside | Hours | Short by |
+        |:--|--:|--:|
+        {% for b in state_attr(s, 'bins') or [] -%}
+        | {{ b.outdoor_from | int }} to {{ b.outdoor_to | int }} °C | {{ b.n }} | {{ b.shortfall }} °C |
+        {% endfor %}
+        {% endif %}
+      grid_options:
+        columns: full
+  - type: grid
     column_span: 3
     cards:
     - type: heading

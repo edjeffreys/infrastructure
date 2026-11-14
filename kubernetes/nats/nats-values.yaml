@@ -68,12 +68,39 @@ config:
                 - "$JS.API.CONSUMER.INFO.ALERTS.claude-agent"
                 - "$JS.API.CONSUMER.MSG.NEXT.ALERTS.claude-agent"
                 - "$JS.ACK.ALERTS.claude-agent.>"
-              subscribe: ["_INBOX.>"]
+                - "$JS.API.STREAM.INFO.HEATING"
+                - "$JS.API.CONSUMER.CREATE.HEATING.>"
+                - "$JS.API.CONSUMER.MSG.NEXT.HEATING.>"
+                - "$JS.API.CONSUMER.INFO.HEATING.>"
+                - "$JS.API.CONSUMER.DELETE.HEATING.>"
+              subscribe: ["_INBOX.>", "homeassistant.statestream.>", "homeassistant.heating_curve.>", "heating.curve.>"]
           - user: "CN=energy-telemetry.energy-telemetry"
             permissions:
               publish:
                 deny: [">"]
               subscribe: ["glow.*.SENSOR.>", "homeassistant.statestream.>", "truenas.power", "proxmox.power"]
+          # Replays ENERGY, keeps its own HEATING stream, and publishes HA discovery on the hub;
+          # the nats-mqtt leaf carries homeassistant.> to HA.
+          - user: "CN=heating-curve.heating-curve"
+            permissions:
+              publish:
+                - "$JS.API.INFO"
+                - "$JS.API.STREAM.INFO.ENERGY"
+                - "$JS.API.STREAM.MSG.GET.ENERGY"
+                - "$JS.API.DIRECT.GET.ENERGY.>"
+                - "$JS.API.CONSUMER.CREATE.ENERGY.>"
+                - "$JS.API.CONSUMER.MSG.NEXT.ENERGY.>"
+                - "$JS.API.CONSUMER.INFO.ENERGY.>"
+                - "$JS.API.CONSUMER.DELETE.ENERGY.>"
+                - "$JS.API.STREAM.INFO.HEATING"
+                - "$JS.API.CONSUMER.CREATE.HEATING.>"
+                - "$JS.API.CONSUMER.MSG.NEXT.HEATING.>"
+                - "$JS.API.CONSUMER.INFO.HEATING.>"
+                - "$JS.API.CONSUMER.DELETE.HEATING.>"
+                - "heating.curve.>"
+                - "homeassistant.sensor.heating_curve_advisor.>"
+                - "homeassistant.heating_curve.>"
+              subscribe: ["_INBOX.>", "homeassistant.status"]
       SYS:
         users:
           - user: "CN=nats-box-sys.nats"

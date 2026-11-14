@@ -151,7 +151,7 @@
     },
     {
       "description": "Images built in this repo — images/<name>/Dockerfile, built by build-<name>.yaml and pushed as :latest (plus :sha-<short-sha>) — so there is no upstream version for Renovate to track here. They also must not be caught by the pinDigests rule below: digest updates are disabled repo-wide, so a pinned digest would freeze the workload at whatever it was first pinned to. The Dockerfiles' own ARG pins are managed by the `# renovate:` regex manager.",
-      "matchPackageNames": ["ghcr.io/edjeffreys/claude-agent", "ghcr.io/edjeffreys/cups"],
+      "matchPackageNames": ["ghcr.io/edjeffreys/claude-agent", "ghcr.io/edjeffreys/cups", "ghcr.io/edjeffreys/heating-curve"],
       "enabled": false
     },
     {

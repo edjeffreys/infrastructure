@@ -563,6 +563,7 @@ See `kubernetes/arc-systems/README.md` for the full setup and a diagnosis runboo
 | nack | nack | standard | NATS JetStream controller: streams are `Stream` resources in git, not `nats stream add`; see `kubernetes/nats/README.md` "Streams" |
 | alert-relay | alert-relay | standard | Redpanda Connect: Alertmanager webhook → `ALERTS` stream, one message per alert on `alerts.<status>.<severity>.<alertname>`; Pushover unchanged |
 | energy-telemetry | energy-telemetry | standard | Telegraf: Glow meter + ViCare (via HA `mqtt_statestream`) from NATS → Prometheus, `ENERGY` stream, Grafana "Home energy"; see `kubernetes/energy-telemetry/README.md` |
+| heating-curve | heating-curve | standard | Go service (`images/heating-curve/`): replays HA statestream from `ENERGY`, stores hourly curve samples in `HEATING`, publishes slope/shift recommendations back to HA via MQTT discovery; see `kubernetes/heating-curve/README.md` |
 | cups | cups | standard | Print server for the Selphy CP1500 on VIP `10.0.0.212:631`; iPhones find it via unicast DNS-SD, not mDNS — see `kubernetes/cups/README.md` |
 | dns-sd | dns-sd | standard | CoreDNS on VIP `10.0.0.213`, authoritative for the DNS-SD records in `lan.skaal.lan`; UniFi Forward Domain entries send it only those names — see `kubernetes/dns-sd/README.md` |
 | zigbee2mqtt | zigbee2mqtt | standard | Coordinator is the SLZB-06U (CC2652P, `zstack`) at `tcp://10.100.0.252:6638` on the IoT VLAN; publishes to `nats-mqtt`. The PVC holds the network key — see `kubernetes/zigbee2mqtt/README.md` |

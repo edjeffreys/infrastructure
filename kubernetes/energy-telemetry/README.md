@@ -39,7 +39,8 @@ or `on`/`off`.
 | `host_power_gpu_pstate{host}` | `P8` becomes 8 |
 
 Text states (`eco`, `unavailable`) are dropped, with an error line in the
-Telegraf log for each.
+Telegraf log for each. `climate.boiler_heating` (`auto`/`off`) is published for
+`heating-curve` and adds one such line per mode change.
 
 **Values never expire.** Statestream only publishes on change, so a steady
 value like `boiler_burner_hours` would vanish under Telegraf's default 60s

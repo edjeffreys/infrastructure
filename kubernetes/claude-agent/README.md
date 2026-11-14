@@ -134,8 +134,9 @@ or stop a stale one.
 
 This pod is a NATS client like any other: `certificate.yaml`, a
 `CN=claude-agent.claude-agent` user in `kubernetes/nats/nats-values.yaml`
-that may only pull from and ack its own consumer, `claude-agent` in the NATS
-`allow-client-ingress` policy, and `allow-nats-egress` here.
+that may pull from and ack its own consumer and read `HEATING`, statestream and
+the heating-curve advisor state (`kubernetes/heating-curve/`), `claude-agent`
+in the NATS `allow-client-ingress` policy, and `allow-nats-egress` here.
 
 ## Bootstrap
 
