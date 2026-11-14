@@ -119,8 +119,6 @@ func TestEvaluateReasons(t *testing.T) {
 		{"off", func(h history) { h.get(entClimate).add(at(-5), "off") }, "heating off"},
 		{"solar", func(h history) { h.get(entSolarGain).add(at(-5), "on") }, "solar gain"},
 		{"mild", func(h history) { h.get(entOutdoor).add(at(-120), "13") }, "too mild: boiler at minimum output"},
-		{"dhw", func(h history) { h.get(entDHWGas).add(at(-20), "1.3") }, "hot water used"},
-		{"dhw spike", func(h history) { h.get(entSupply).add(at(-20), "65"); h.get(entSupply).add(at(-18), "45") }, "hot water used"},
 		{"setpoint", func(h history) { h.get(entSetpoint).add(at(-120), "20") }, "setpoint changed recently"},
 		{"shift", func(h history) { h.get(entShift).add(at(-170), "-5") }, "curve changed recently"},
 		{"no demand", func(h history) { h.get(entShift).add(at(-24*60+1), "-30"); h.get(entSupply).add(at(-24*60+1), "25") }, "no heat demand"},
@@ -151,5 +149,24 @@ func TestEntityOf(t *testing.T) {
 func TestSubject(t *testing.T) {
 	if got := subject("homeassistant/sensor/heating_curve_advisor/samples/config"); got != "homeassistant.sensor.heating_curve_advisor.samples.config" {
 		t.Fatal(got)
+	}
+}
+
+func TestEvaluateKeepsHotWaterHours(t *testing.T) {
+	h := steadyHouse(19, 0)
+	h.get(entDHWGas).add(at(-20), "1.3")
+	h.get(entSupply).add(at(-20), "65")
+	h.get(entSupply).add(at(-10), "45")
+	s := h.evaluate(t0)
+	if !s.Valid || math.Abs(s.DHWGas-0.3) > 1e-9 {
+		t.Fatalf("got %+v", s)
+	}
+}
+
+func TestEvaluateDoesNotNeedSupply(t *testing.T) {
+	h := steadyHouse(19, 0)
+	h.get(entSupply).add(at(-59), "unavailable")
+	if s := h.evaluate(t0); !s.Valid {
+		t.Fatalf("got %+v", s)
 	}
 }

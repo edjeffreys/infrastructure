@@ -51,6 +51,7 @@ func main() {
 	flag.DurationVar(&c.fit.HalfLife, "half-life", 30*24*time.Hour, "sample weight half-life")
 	flag.Float64Var(&c.fit.BinWidth, "bin-width", 2, "outdoor temperature bin width, °C")
 	flag.Float64Var(&c.fit.MinN, "min-samples", 24, "weighted samples needed before recommending")
+	flag.BoolVar(&c.fit.ExcludeDHW, "exclude-dhw", false, "leave hours with hot-water use out of the fit")
 	flag.Parse()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

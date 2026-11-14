@@ -22,6 +22,8 @@ type fitConfig struct {
 	HalfLife time.Duration
 	BinWidth float64
 	MinN     float64
+	// ExcludeDHW drops hours with any hot-water gas, to compare against the HA advisor.
+	ExcludeDHW bool
 }
 
 type bin struct {
@@ -53,7 +55,7 @@ func fit(samples []sample, now time.Time, currentSlope float64, cfg fitConfig) r
 	var pts []pt
 	binW := map[float64]float64{}
 	for _, s := range samples {
-		if !s.Valid {
+		if !s.Valid || (cfg.ExcludeDHW && s.DHWGas > 0) {
 			continue
 		}
 		age := now.Sub(s.Hour)

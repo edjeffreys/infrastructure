@@ -111,14 +111,6 @@ func (s *series) mean(from, to time.Time) (float64, bool) {
 	return sum / covered, true
 }
 
-func (s *series) max(from, to time.Time) (float64, bool) {
-	m, ok := math.Inf(-1), false
-	s.segments(from, to, func(_, _ time.Time, v float64) {
-		m, ok = math.Max(m, v), true
-	})
-	return m, ok
-}
-
 // rise sums the increases over [from, to), so a daily counter's midnight
 // reset to zero does not read as use.
 func (s *series) rise(from, to time.Time) float64 {

@@ -71,9 +71,9 @@ as the cost of a constant 0 kWh sensor. The dashboard's energy sources are
   burner-off coasting. Hours with sun in the last 4 h, DHW use, outdoor above
   12 °C, or a setpoint/curve change in the last 3 h are skipped.
   The in-cluster `heating-curve` service (`kubernetes/heating-curve/`) now runs
-  the same samples alongside it, keeps them all, and weights the fit toward the
-  sparse cold hours. Its card sits under this one; retire this advisor once
-  the two agree.
+  samples alongside it, keeps them all, counts hot-water hours, and weights
+  the fit toward the sparse cold hours. Its card sits under this one; retire
+  this advisor once the two agree.
 - **Solar compensation** — lowers the boiler's *normal* temperature when the
   house overshoots, or pre-emptively in sun, and *reduced* by the same amount:
   weather compensation has no room feedback, so a setback period would
