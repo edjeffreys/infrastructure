@@ -12,3 +12,4 @@ configMapGenerator:
     files:
       - Corefile
       - lan.skaal.lan.db
+      - guest.skaal.lan.db
