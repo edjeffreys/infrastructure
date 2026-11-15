@@ -13,7 +13,7 @@ ARG K8S_MCP_VERSION=0.1.2
 # renovate: datasource=github-releases depName=nats-io/natscli extractVersion=^v(?<version>.+)$
 ARG NATS_CLI_VERSION=0.5.1
 # renovate: datasource=github-releases depName=rust-lang/rust
-ARG RUST_VERSION=1.99.1
+ARG RUST_VERSION=1.100.0
 # renovate: datasource=github-tags depName=ziglang/zig
 ARG ZIG_VERSION=0.17.1
 
