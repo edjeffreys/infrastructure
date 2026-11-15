@@ -58,6 +58,11 @@ prometheus:
       node-type: standard
     retention: 7d
     retentionSize: 8GB
+    # The default 1m resends every 90s, exactly Alertmanager's idle timeout, so
+    # sends race the close and fail with EOF. 45s resends every 60s.
+    additionalArgs:
+      - name: rules.alert.resend-delay
+        value: 45s
     storageSpec:
       volumeClaimTemplate:
         spec:
