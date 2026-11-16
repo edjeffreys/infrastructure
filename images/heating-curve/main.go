@@ -28,6 +28,8 @@ const (
 	lookback = 6 * time.Hour
 	// Lets statestream messages for the hour arrive before it is evaluated.
 	grace = 30 * time.Second
+	// Fitted from the overnight hours of 2026-11-14 to 16: 57 h on measured supply.
+	timeConstant = 60 * time.Hour
 )
 
 type config struct {
@@ -37,6 +39,7 @@ type config struct {
 	backfill           time.Duration
 	listen             string
 	fit                fitConfig
+	timeConstant       time.Duration
 }
 
 func main() {
@@ -56,9 +59,10 @@ func main() {
 	flag.StringVar(&c.samplesStream, "samples-stream", "HEATING", "stream holding hourly samples")
 	flag.DurationVar(&c.backfill, "backfill", 7*24*time.Hour, "hours to compute from history on first start")
 	flag.StringVar(&c.listen, "listen", ":8080", "health endpoint")
-	flag.DurationVar(&c.fit.HalfLife, "half-life", 30*24*time.Hour, "sample weight half-life")
+	flag.DurationVar(&c.fit.HalfLife, "half-life", 7*24*time.Hour, "sample weight half-life")
 	flag.Float64Var(&c.fit.BinWidth, "bin-width", 2, "outdoor temperature bin width, °C")
 	flag.Float64Var(&c.fit.MinN, "min-samples", 24, "weighted samples needed before recommending")
+	flag.DurationVar(&c.timeConstant, "time-constant", timeConstant, "house thermal time constant, for where the indoor trend is heading")
 	flag.Parse()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -317,7 +321,7 @@ func (e *engine) catchUp(ctx context.Context) {
 func (e *engine) advance(ctx context.Context, to time.Time) {
 	evaluated := false
 	for !e.next.After(to) {
-		s := e.hist.evaluate(e.next)
+		s := e.hist.evaluate(e.next, e.cfg.timeConstant)
 		e.next = e.next.Add(time.Hour)
 		b, _ := json.Marshal(s)
 		hdr := nats.Header{}

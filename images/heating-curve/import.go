@@ -25,6 +25,7 @@ func importHA(args []string, out io.Writer) error {
 	fs := flag.NewFlagSet("import-ha", flag.ContinueOnError)
 	haURL := fs.String("ha-url", "https://home.skaal.dev", "Home Assistant base URL")
 	days := fs.Int("days", 7, "days of history to import")
+	tau := fs.Duration("time-constant", timeConstant, "house thermal time constant")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -45,7 +46,7 @@ func importHA(args []string, out io.Writer) error {
 	enc := json.NewEncoder(out)
 	valid := 0
 	for hour := first; !hour.After(last); hour = hour.Add(time.Hour) {
-		s := h.evaluate(hour)
+		s := h.evaluate(hour, *tau)
 		if s.Valid {
 			valid++
 		}

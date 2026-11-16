@@ -89,20 +89,19 @@ func steadyHouse(indoor, outdoor float64) history {
 
 func ftoa(v float64) string { return strconv.FormatFloat(v, 'f', -1, 64) }
 
-func TestEvaluateAtSetpointNeedsTheCurve(t *testing.T) {
-	s := steadyHouse(19, 0).evaluate(t0)
-	if !s.Valid || s.RequiredFlow != round(curveFlow(1.6, -6, 0, 19), 1) {
+func TestEvaluateSteadyAtSetpointNeedsWhatItGot(t *testing.T) {
+	s := steadyHouse(19, 0).evaluate(t0, timeConstant)
+	if !s.Valid || s.RequiredFlow != 45 || s.Trend != 0 {
 		t.Fatalf("got %+v", s)
 	}
 }
 
 func TestEvaluateColdHouseNeedsMore(t *testing.T) {
-	s := steadyHouse(18, 0).evaluate(t0)
-	if !s.Valid || s.RequiredFlow <= s.CurveFlow {
+	s := steadyHouse(18, 0).evaluate(t0, timeConstant)
+	if !s.Valid || s.RequiredFlow <= s.Supply {
 		t.Fatalf("got %+v", s)
 	}
-	// Same arithmetic as the HA advisor.
-	mwt := curveFlow(1.6, -6, 0, 19) - 5
+	mwt := 45.0 - 5
 	want := 19 + (mwt-18)*math.Pow(19.0/18.0, 1/1.3) + 5
 	if math.Abs(s.RequiredFlow-round(want, 1)) > 1e-9 {
 		t.Fatalf("got %v, want %v", s.RequiredFlow, round(want, 1))
@@ -126,7 +125,7 @@ func TestEvaluateReasons(t *testing.T) {
 	for _, c := range cases {
 		h := steadyHouse(19, 0)
 		c.mutate(h)
-		if s := h.evaluate(t0); s.Reason != c.want {
+		if s := h.evaluate(t0, timeConstant); s.Reason != c.want {
 			t.Errorf("%s: got %q, want %q", c.name, s.Reason, c.want)
 		}
 	}
@@ -152,21 +151,46 @@ func TestSubject(t *testing.T) {
 	}
 }
 
-func TestEvaluateKeepsHotWaterHours(t *testing.T) {
+func TestEvaluateFallingHouseNeedsMore(t *testing.T) {
+	h := steadyHouse(19.1, 0)
+	h.get(entHouse).add(at(-60), "19")
+	s := h.evaluate(t0, timeConstant)
+	if !s.Valid || math.Abs(s.Trend+0.05) > 1e-9 || math.Abs(s.Heading-16) > 1e-9 {
+		t.Fatalf("got %+v", s)
+	}
+	want := 19 + (40-19)*math.Pow(19.0/16.0, 1/1.3) + 5
+	if math.Abs(s.RequiredFlow-round(want, 1)) > 1e-9 {
+		t.Fatalf("got %v, want %v", s.RequiredFlow, round(want, 1))
+	}
+}
+
+func TestEvaluateSkipsHotWater(t *testing.T) {
+	for name, minute := range map[string]int{"this hour": -20, "trend window": -150} {
+		h := steadyHouse(19, 0)
+		h.get(entDHWGas).add(at(minute), "1.3")
+		if s := h.evaluate(t0, timeConstant); s.Reason != "hot water" {
+			t.Errorf("%s: got %q", name, s.Reason)
+		}
+	}
 	h := steadyHouse(19, 0)
-	h.get(entDHWGas).add(at(-20), "1.3")
-	h.get(entSupply).add(at(-20), "65")
-	h.get(entSupply).add(at(-10), "45")
-	s := h.evaluate(t0)
-	if !s.Valid || math.Abs(s.DHWGas-0.3) > 1e-9 {
+	h.get(entDHWGas).add(at(-200), "1.3")
+	if s := h.evaluate(t0, timeConstant); !s.Valid {
+		t.Errorf("reheat before the trend window: got %+v", s)
+	}
+}
+
+func TestEvaluateNeedsSupply(t *testing.T) {
+	h := steadyHouse(19, 0)
+	h.get(entSupply).add(at(-59), "unavailable")
+	if s := h.evaluate(t0, timeConstant); s.Reason != "missing data" {
 		t.Fatalf("got %+v", s)
 	}
 }
 
-func TestEvaluateDoesNotNeedSupply(t *testing.T) {
-	h := steadyHouse(19, 0)
-	h.get(entSupply).add(at(-59), "unavailable")
-	if s := h.evaluate(t0); !s.Valid {
+func TestEvaluateSkipsFastChange(t *testing.T) {
+	h := steadyHouse(19.5, 0)
+	h.get(entHouse).add(at(-60), "19")
+	if s := h.evaluate(t0, timeConstant); s.Reason != "indoor changing fast" {
 		t.Fatalf("got %+v", s)
 	}
 }
