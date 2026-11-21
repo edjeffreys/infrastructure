@@ -29,7 +29,7 @@ spec:
   # drives most sizing decisions in this cluster does not really apply here.
   instances: 2
 
-  imageName: ghcr.io/cloudnative-pg/postgresql:18.6-standard-trixie
+  imageName: ghcr.io/cloudnative-pg/postgresql:19.0-standard-trixie
 
   # Labels both instances' PVCs: instance names change on rebuild, so there is
   # no stable one to pick. See kubernetes/longhorn/README.md.
