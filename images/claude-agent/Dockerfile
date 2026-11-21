@@ -9,7 +9,7 @@ ARG GH_VERSION=2.104.0
 # renovate: datasource=github-releases depName=github/github-mcp-server extractVersion=^v(?<version>.+)$
 ARG GITHUB_MCP_VERSION=2.1.0
 # renovate: datasource=github-releases depName=containers/kubernetes-mcp-server extractVersion=^v(?<version>.+)$
-ARG K8S_MCP_VERSION=0.1.2
+ARG K8S_MCP_VERSION=0.1.3
 # renovate: datasource=github-releases depName=nats-io/natscli extractVersion=^v(?<version>.+)$
 ARG NATS_CLI_VERSION=0.5.1
 # renovate: datasource=github-releases depName=rust-lang/rust
