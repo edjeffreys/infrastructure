@@ -23,7 +23,7 @@ spec:
 
       containers:
         - name: radarr
-          image: ghcr.io/hotio/radarr:release-6.4.4.10685@sha256:289cb5686dc2292ac4c00ef818ad954b1e4423baffe03e69dd93ebfed38d2fc1
+          image: ghcr.io/hotio/radarr:release-7.0.3.10918@sha256:2d53019fa4a9da7aaff372fa477a666eaecf7a1370b2231ccf1db02b8a0ca305
           env:
             - name: PUID
               value: "3000"
