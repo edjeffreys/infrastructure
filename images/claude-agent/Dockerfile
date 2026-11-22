@@ -11,7 +11,7 @@ ARG GITHUB_MCP_VERSION=2.1.0
 # renovate: datasource=github-releases depName=containers/kubernetes-mcp-server extractVersion=^v(?<version>.+)$
 ARG K8S_MCP_VERSION=0.1.2
 # renovate: datasource=github-releases depName=nats-io/natscli extractVersion=^v(?<version>.+)$
-ARG NATS_CLI_VERSION=0.5.1
+ARG NATS_CLI_VERSION=0.5.2
 # renovate: datasource=github-releases depName=rust-lang/rust
 ARG RUST_VERSION=1.100.0
 # renovate: datasource=github-tags depName=ziglang/zig
