@@ -19,6 +19,17 @@ spec:
     spec:
       nodeSelector:
         node-type: standard
+      # longhorn-single's best-effort locality copies the whole cache after the
+      # pod whenever it lands on a new node. See README "Why it is pinned".
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values: ["talos-worker-0"]
       securityContext:
         runAsUser: 1000
         runAsGroup: 1000
