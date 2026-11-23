@@ -30,7 +30,7 @@ spec:
         runAsUser: 10001
       containers:
         - name: connect
-          image: redpandadata/connect:4.118.0@sha256:2c6dd2fe757eaa588eeee90376ec2220a5d1731940d71a2005d8b249296dd2be
+          image: redpandadata/connect:4.119.0@sha256:64a140553f57eaefe897ad9613b9190e30a51e08fa8cdc9ebb02120440654fa7
           args: [run, --disable-telemetry, /etc/connect/connect.yaml]
           ports:
             - name: http
