@@ -69,6 +69,28 @@ cache write onto the same disk. Storage class is immutable on a bound PVC,
 which is why the claim was renamed from `buildkit-cache` when it moved off
 `longhorn` — Flux prunes the old one.
 
+### Why it is pinned to one node
+
+`longhorn-single` uses `dataLocality: best-effort`, so the replica follows the
+pod. For buildkitd that is the wrong trade. A pod that comes back on another
+node (a Renovate buildkit bump, a descheduler eviction, a drain) makes Longhorn
+rebuild the whole ~9 GB cache onto the new node, then drop the old copy. Every
+worker VM sits on the one Proxmox NVMe, so that copy stalls I/O for the whole
+cluster, and it moves 9 GB of usage between nodes' EPHEMERAL partitions.
+
+That happened on 2026-11-22. #276 (buildkit v0.35.1) merged at 23:06Z, the
+Recreate rollout put the pod on `talos-worker-1`, and the cache rebuilt
+worker-0 → worker-1 from 23:07:58 to 23:10:37. In that window probes timed out
+and pods got `SandboxChanged` on worker-1 and worker-2, alongside a Renovate CI
+burst. worker-1 went to 83% (`LonghornNodeStorageWarning`) and worker-2 raised
+`NodeMemoryMajorPagesFaults`.
+
+The deployment therefore prefers `talos-worker-0`, the worker with the most
+free Longhorn disk. The rule is *preferred*, not required, so buildkitd still
+schedules if worker-0 is down, and moves back to worker-0 when it next
+restarts. Changing the node causes one deliberate rebuild. Do that when CI is
+quiet.
+
 ## The gRPC endpoint is unauthenticated
 
 `buildkitd` listens on `tcp://0.0.0.0:1234` with no TLS and no client
