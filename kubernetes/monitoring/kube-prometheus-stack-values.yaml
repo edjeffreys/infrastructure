@@ -72,12 +72,14 @@ prometheus:
           resources:
             requests:
               storage: 20Gi
+    # The limit also caps the page cache holding the mmap'd TSDB: at 2Gi, ~900Mi
+    # RSS left ~1.1Gi for an 8GB block set, so reads became major page faults.
     resources:
       requests:
-        memory: 512Mi
+        memory: 1Gi
         cpu: 250m
       limits:
-        memory: 2Gi
+        memory: 3Gi
         cpu: 1000m
     # Scrape ServiceMonitors and PodMonitors from all namespaces without label restrictions
     serviceMonitorSelectorNilUsesHelmValues: false
