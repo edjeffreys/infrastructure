@@ -56,6 +56,22 @@ prometheus:
   prometheusSpec:
     nodeSelector:
       node-type: standard
+    # Prefer talos-worker-0: talos-worker-2 runs ~47 pods at ~72% working set,
+    # which leaves ~2Gi of page cache on the whole node for the mmap'd 8GB
+    # TSDB. NodeMemoryMajorPagesFaults kept firing there (~520/s) after the
+    # cgroup limit below went to 3Gi, because the node, not the container, was
+    # the binding limit. worker-0 has ~3.5Gi free. Moving costs one Longhorn
+    # rebuild of the TSDB replica (best-effort locality); preferred, not
+    # required, so a worker-0 outage still schedules elsewhere.
+    affinity:
+      nodeAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+                - key: kubernetes.io/hostname
+                  operator: In
+                  values: ["talos-worker-0"]
     retention: 7d
     retentionSize: 8GB
     # The default 1m resends every 90s, exactly Alertmanager's idle timeout, so
