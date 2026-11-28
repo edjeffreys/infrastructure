@@ -7,7 +7,7 @@ ARG CLAUDE_CODE_VERSION=2.1.323
 # renovate: datasource=github-releases depName=cli/cli extractVersion=^v(?<version>.+)$
 ARG GH_VERSION=2.104.0
 # renovate: datasource=github-releases depName=github/github-mcp-server extractVersion=^v(?<version>.+)$
-ARG GITHUB_MCP_VERSION=2.1.0
+ARG GITHUB_MCP_VERSION=2.3.0
 # renovate: datasource=github-releases depName=containers/kubernetes-mcp-server extractVersion=^v(?<version>.+)$
 ARG K8S_MCP_VERSION=0.1.2
 # renovate: datasource=github-releases depName=nats-io/natscli extractVersion=^v(?<version>.+)$
